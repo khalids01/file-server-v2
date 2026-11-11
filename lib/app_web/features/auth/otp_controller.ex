@@ -10,13 +10,30 @@ defmodule AppWeb.OtpController do
     |> render(:new)
   end
 
-  def request_code(conn, %{"email" => email}) do
+  def register(conn, params) do
+    name = params["name"]
+
+    if is_binary(name) and String.trim(name) != "" and String.length(String.trim(name)) <= 100 do
+      request_email_code(conn, params["email"], String.trim(name))
+    else
+      conn
+      |> put_status(422)
+      |> put_flash(:error, "Enter your name (up to 100 characters).")
+      |> put_view(html: AppWeb.SessionHTML)
+      |> render(:register, github?: App.Accounts.Github.enabled?())
+    end
+  end
+
+  def request_code(conn, %{"email" => email}), do: request_email_code(conn, email, nil)
+
+  defp request_email_code(conn, email, name) do
     ip = client_ip(conn)
 
     case Otp.request_sign_in(email, ip) do
       :ok ->
         conn
         |> put_session(:pending_otp_email, email)
+        |> put_session(:pending_otp_name, name)
         |> render(:verify, email: email, error: nil)
 
       {:error, reason} ->
@@ -27,7 +44,15 @@ defmodule AppWeb.OtpController do
             _ -> {422, "Enter a valid email address."}
           end
 
-        conn |> put_status(status) |> put_flash(:error, message) |> render(:new)
+        conn = conn |> put_status(status) |> put_flash(:error, message)
+
+        if name do
+          conn
+          |> put_view(html: AppWeb.SessionHTML)
+          |> render(:register, github?: App.Accounts.Github.enabled?())
+        else
+          render(conn, :new)
+        end
     end
   end
 
@@ -41,11 +66,12 @@ defmodule AppWeb.OtpController do
         |> redirect(to: ~p"/sign-in/otp")
 
       email ->
-        case Otp.verify_sign_in(email, code, ip) do
+        case Otp.verify_sign_in(email, code, ip, get_session(conn, :pending_otp_name)) do
           {:ok, user} ->
             conn
             |> configure_session(renew: true)
             |> delete_session(:pending_otp_email)
+            |> delete_session(:pending_otp_name)
             |> store_in_session(user)
             |> assign(:current_user, user)
             |> put_flash(:info, "You are now signed in")

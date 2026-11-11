@@ -20,7 +20,7 @@ defmodule AppWeb.Router do
     auth_post? =
       conn.method == "POST" and
         (List.first(conn.path_info) == "auth" or
-           Enum.take(conn.path_info, 2) == ["sign-in", "otp"])
+           Enum.take(conn.path_info, 2) == ["sign-in", "otp"] or conn.path_info == ["register"])
 
     if auth_post? and
          not App.Accounts.RateLimit.allow_auth_ip?(to_string(:inet.ntoa(conn.remote_ip))) do
@@ -123,6 +123,7 @@ defmodule AppWeb.Router do
 
     get "/sign-in", SessionController, :new
     get "/register", SessionController, :register
+    post "/register", OtpController, :register
   end
 
   # Other scopes may use custom stacks.

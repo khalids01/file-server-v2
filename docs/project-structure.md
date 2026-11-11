@@ -41,6 +41,8 @@ agent/                          Replacement roadmap and implementation notes
 | What you want to change | Start here |
 | --- | --- |
 | Landing page content | `lib/app_web/features/landing/page_html/home.html.heex` |
+| Signup appearance | `lib/app_web/features/auth/session_html/register.html.heex` |
+| Account avatar menu | `lib/app_web/components/ui/user_menu.ex` |
 | Sign-in appearance | `lib/app_web/features/auth/session_html/new.html.heex` |
 | Email code request or verification appearance | `lib/app_web/features/auth/otp_html/` |
 | Email code validation or GitHub account linking | `lib/app/accounts/` |
@@ -76,5 +78,5 @@ From `v2/`, load your local environment with `set -a; source .env; set +a`, then
 variables. The `.env` file is not loaded automatically.
 
 Checks: `mix precommit`, `mix assets.build`, `mix ash.codegen --check`, and
-`node --test test/js/theme_test.mjs`. Use your configured development/test database;
+`node --test test/js/*_test.mjs`. Use your configured development/test database;
 `docker compose up -d db` supplies the repository's local database on port 5434.

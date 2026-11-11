@@ -1,3 +1,5 @@
+import {initUserMenus} from "./user_menu.mjs"
+initUserMenus()
 import {initTheme} from "./theme.mjs"
 initTheme()
 // If you want to use Phoenix channels, run `mix help phx.gen.channel`

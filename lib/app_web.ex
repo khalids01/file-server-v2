@@ -86,6 +86,7 @@ defmodule AppWeb do
       import Phoenix.HTML
       # Core UI components
       import AppWeb.UI.Flash
+      import AppWeb.UI.UserMenu
       import AppWeb.UI.Button
       import AppWeb.UI.Input
       import AppWeb.UI.Card

@@ -142,7 +142,7 @@ mix ash.codegen --check
 node --test test/js/theme_test.mjs
 ```
 
-Verified: **37 Elixir tests + 4 JavaScript theme tests**, warnings-as-errors app
+Verified: **44 Elixir tests + 7 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, tenant isolation, bans, key revocation and persisted
@@ -165,3 +165,10 @@ and database TLS for your deployment; do not switch v1 production traffic yet.
 Existing Assent Apple-auth and Cloak AES-CTR advisories do not concern enabled
 providers/ciphers here; the app uses GitHub and AES-GCM. Recheck compatibility and
 advisories before future dependency/provider changes.
+
+Account creation is available at `/register` with name and email verification,
+or GitHub OAuth. Sign-in links to registration. The shared `<.user_menu user={@current_user} />`
+component lives in `lib/app_web/components/ui/user_menu.ex`; it shows the GitHub
+avatar or the first letter of the display name, with profile and sign-out links.
+Run `mix ecto.migrate` after pulling to add the optional `users.avatar_url` column.
+Existing GitHub users receive their avatar on their next GitHub sign-in.

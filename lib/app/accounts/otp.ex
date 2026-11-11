@@ -84,11 +84,13 @@ defmodule App.Accounts.Otp do
 
   def request_sign_in(_, _), do: {:error, :invalid}
 
-  def verify_sign_in(email, code, _ip) when is_binary(email) and is_binary(code) do
+  def verify_sign_in(email, code, ip, name \\ nil)
+
+  def verify_sign_in(email, code, _ip, name) when is_binary(email) and is_binary(code) do
     if Regex.match?(~r/^\d{6}$/, code) do
       identity = normalize(email)
 
-      case App.Repo.transaction(fn -> verify_locked(identity, code) end) do
+      case App.Repo.transaction(fn -> verify_locked(identity, code, name) end) do
         {:ok, result} -> result
         {:error, _} -> {:error, :invalid}
       end
@@ -97,9 +99,9 @@ defmodule App.Accounts.Otp do
     end
   end
 
-  def verify_sign_in(_, _, _), do: {:error, :invalid}
+  def verify_sign_in(_, _, _, _), do: {:error, :invalid}
 
-  defp verify_locked(identity, code) do
+  defp verify_locked(identity, code, name) do
     challenge =
       App.Repo.one(
         from c in OtpChallengeRecord,
@@ -130,7 +132,11 @@ defmodule App.Accounts.Otp do
           # Registration, consumption and persisted session token share one DB transaction.
           user =
             User
-            |> Ash.Changeset.for_create(:register_with_otp, %{email: identity}, authorize?: false)
+            |> Ash.Changeset.for_create(
+              :register_with_otp,
+              %{email: identity, name: registration_name(name)},
+              authorize?: false
+            )
             |> Ash.create!()
 
           App.Repo.update!(Ecto.Changeset.change(challenge, consumed_at: DateTime.utc_now()))
@@ -146,6 +152,11 @@ defmodule App.Accounts.Otp do
         {:error, :invalid}
     end
   end
+
+  defp registration_name(name) when is_binary(name),
+    do: name |> String.trim() |> String.slice(0, 100)
+
+  defp registration_name(_), do: nil
 
   defp find_user(email),
     do: User |> Ash.Query.filter(email == ^email) |> Ash.read_one!(authorize?: false)

@@ -31,9 +31,11 @@ defmodule App.Accounts.OAuthAndLifecycleTest do
                "sub" => "new-subject",
                "email" => "github-new@example.com",
                "email_verified" => true,
-               "name" => "GitHub user"
+               "name" => "GitHub user",
+               "picture" => "https://avatars.githubusercontent.com/u/123"
              })
 
+    assert user.avatar_url == "https://avatars.githubusercontent.com/u/123"
     assert user.confirmed_at
     assert App.Accounts.active_user(user)
     [identity] = Ash.read!(App.Accounts.UserIdentity, authorize?: false)

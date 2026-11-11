@@ -12,7 +12,7 @@ defmodule AppWeb.MvpRoutesTest do
   } do
     doc = conn |> get("/sign-in") |> html_response(200) |> LazyHTML.from_document()
     assert length(LazyHTML.query(doc, "#otp-request") |> LazyHTML.to_tree()) == 1
-    assert conn |> get("/register") |> redirected_to() == "/sign-in"
+    conn |> get("/register") |> html_response(200)
     conn |> get("/sign-in/otp") |> html_response(200)
     conn |> get("/forgot-password") |> response(404)
     assert conn |> get("/auth/user/github") |> redirected_to() == "/sign-in"

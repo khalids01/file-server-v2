@@ -51,13 +51,10 @@ defmodule AppWeb.Layouts do
         <nav class="flex items-center gap-2 text-sm font-medium" aria-label="Account navigation">
           <.theme_toggle />
           <%= if @current_user do %>
-            <span class="hidden px-2 text-xs text-muted-foreground sm:block">{to_string(
-              @current_user.email
-            )}</span>
-            <.button href="/sign-out" variant="ghost">Sign out</.button>
+            <.user_menu user={@current_user} />
           <% else %>
             <.button href="/sign-in" variant="ghost">Sign in</.button>
-            <.button href="/sign-in" class="hidden sm:inline-flex">Get started
+            <.button href="/register" class="hidden sm:inline-flex">Get started
             <.icon name="hero-arrow-up-right" class="size-3.5" /></.button>
           <% end %>
         </nav>

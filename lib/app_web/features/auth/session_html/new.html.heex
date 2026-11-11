@@ -6,7 +6,7 @@
     /></span>
     <h1 class="text-2xl font-semibold tracking-tight">Welcome to File Server</h1>
     <p class="mt-2 text-sm leading-6 text-muted-foreground">
-      Sign in or create your account. No passwords.
+      Sign in to your account. No passwords.
     </p>
   </div>
   <.button
@@ -45,5 +45,13 @@
   </.form>
   <p class="mt-5 text-center text-xs leading-5 text-muted-foreground">
     We'll send a six-digit code to your inbox.<br />It expires in 10 minutes.
+  </p>
+  <p class="mt-6 text-center text-sm text-muted-foreground">
+    New here?
+    <.link
+      id="sign-up-link"
+      href="/register"
+      class="font-medium text-foreground underline underline-offset-4"
+    >Create an account</.link>
   </p>
 </Layouts.auth>

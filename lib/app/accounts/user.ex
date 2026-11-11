@@ -59,7 +59,7 @@ defmodule App.Accounts.User do
       argument :oauth_tokens, :map, allow_nil?: false, sensitive?: true
       upsert? true
       upsert_identity :unique_email
-      upsert_fields [:confirmed_at]
+      upsert_fields [:confirmed_at, :avatar_url]
 
       change fn changeset, _ ->
         info = Ash.Changeset.get_argument(changeset, :user_info)
@@ -70,6 +70,7 @@ defmodule App.Accounts.User do
           |> Ash.Changeset.set_argument(:oauth_tokens, %{})
           |> Ash.Changeset.change_attribute(:email, String.downcase(String.trim(info["email"])))
           |> Ash.Changeset.force_change_attribute(:name, info["name"])
+          |> Ash.Changeset.force_change_attribute(:avatar_url, info["picture"])
           |> Ash.Changeset.force_change_attribute(:confirmed_at, DateTime.utc_now())
         else
           Ash.Changeset.add_error(
@@ -85,7 +86,7 @@ defmodule App.Accounts.User do
     end
 
     create :register_with_otp do
-      accept [:email]
+      accept [:email, :name]
       upsert? true
       upsert_identity :unique_email
       upsert_fields [:email, :confirmed_at]
@@ -157,6 +158,11 @@ defmodule App.Accounts.User do
     attribute :confirmed_at, :utc_datetime_usec
 
     attribute :name, :string do
+      allow_nil? true
+      public? true
+    end
+
+    attribute :avatar_url, :string do
       allow_nil? true
       public? true
     end
