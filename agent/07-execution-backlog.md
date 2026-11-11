@@ -1,5 +1,9 @@
 # Ordered execution backlog
 
+2026-11-12 override: password/magic-link/personal-key user auth tasks are cancelled,
+not pending work. User auth is GitHub + email OTP only; SMTP and shadcn-style dark
+mode are implemented. See current [authentication](04-authentication.md).
+
 The first MVP is implemented; see [delivery status](mvp-delivery.md). P0 auth
 experiments and P1/P2/P3 have partial implementation. No full phase is declared
 complete: invitations/grants, linking/session UI and all storage/migration phases
@@ -19,7 +23,7 @@ UI, mocked authorization, or an unexecuted migration.
 | P1-02 | P1-01 | Actor/tenant resolver for HTTP/LiveView/Ash | Forged selector, missing tenant, switch, removed-member tests |
 | P1-03 | P1-02,P0-05 | App keys, key actor, scopes and legacy verifier | App binding, revocation, expiry, hash compatibility and no widening tests |
 | P1-04 | P1-02 | Tenant isolation regression suite | Two tenants, two apps each, restricted member; CRUD/aggregate/relationship denial |
-| P2-01 | P0-02,P1-01 | Password + confirmation/reset/change | Success/failure, policy, replay, session revocation, nullable hash tests |
+| P2-01 | — | Cancelled: password registration/login/reset is excluded by the current requirement | Old routes return 404; GitHub + OTP only |
 | P2-02 | P0-02,P2-01 | GitHub identity + explicit linking/unlinking | Controlled OAuth tests, verified-email/missing-email/state/collision tests |
 | P2-03 | P0-02,P1-01 | Email OTP issuance/verification/session integration | Test email, attempts/expiry/resend/rate limits, concurrent single success, signup policy |
 | P2-04 | P2-01,02,03 | Unified sign-in/profile/security screens | Browser flow per method, accessible errors, safe redirect, no last-method unlink |

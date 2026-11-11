@@ -23,15 +23,39 @@ end
 config :app, AppWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 # Use a persistent, private 32-byte key in production. The fallback is local-only.
-config :app, :mail_from, System.get_env("MAIL_FROM", "noreply@example.com")
+email_settings =
+  if config_env() == :test do
+    %{sender: {"File Server", "noreply@example.test"}, smtp: nil}
+  else
+    App.MailerConfig.build(
+      Map.take(
+        System.get_env(),
+        ~w(EMAIL EMAIL_PASSWORD EMAIL_FROM EMAIL_FROM_ADDRESS SMTP_HOST SMTP_PORT)
+      )
+    )
+  end
+
+config :app, :mail_sender, email_settings.sender
+if email_settings.smtp, do: config(:app, App.Mailer, email_settings.smtp)
+
+if config_env() == :prod and is_nil(email_settings.smtp),
+  do: raise("SMTP requires EMAIL and EMAIL_PASSWORD in production")
 
 environment = config_env()
 
 vault_key =
-  case System.get_env("CLOAK_KEY") do
-    nil when environment != :prod -> :crypto.hash(:sha256, "app-v2-local-vault-key")
-    nil -> raise "Missing environment variable CLOAK_KEY (base64-encoded 32 bytes)"
-    encoded -> Base.decode64!(encoded)
+  case System.get_env("CLOAK_KEY")
+       |> then(fn v ->
+         if v in [nil, ""], do: System.get_env("STORAGE_ENCRYPTION_KEY"), else: v
+       end) do
+    value when value in [nil, ""] and environment != :prod ->
+      :crypto.hash(:sha256, "app-v2-local-vault-key")
+
+    value when value in [nil, ""] ->
+      raise "Set STORAGE_ENCRYPTION_KEY or CLOAK_KEY (base64-encoded 32 bytes)"
+
+    encoded ->
+      Base.decode64!(encoded)
   end
 
 if byte_size(vault_key) != 32, do: raise("CLOAK_KEY must decode to exactly 32 bytes")
@@ -62,11 +86,6 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
-  config :app, App.Mailer,
-    adapter: Swoosh.Adapters.Mailgun,
-    api_key: System.fetch_env!("MAILGUN_API_KEY"),
-    domain: System.fetch_env!("MAILGUN_DOMAIN")
-
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
@@ -158,21 +177,5 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
-  # ## Configuring the mailer
-  #
-  # In production you need to configure the mailer to use a different adapter.
-  # Here is an example configuration for Mailgun:
-  #
-  #     config :app, App.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # Most non-SMTP adapters require an API client. Swoosh supports Req, Hackney,
-  # and Finch out-of-the-box. This configuration is typically done at
-  # compile-time in your config/prod.exs:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Req
-  #
-  # See https://swoosh.hexdocs.pm/Swoosh.html#module-installation for details.
+  # SMTP is configured above for both development and production.
 end

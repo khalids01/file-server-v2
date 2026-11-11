@@ -1,7 +1,7 @@
 import Config
 
 config :app, token_signing_secret: "K4RwVes1etrbpsenqKcRx85CT2q3V0Tg"
-config :bcrypt_elixir, log_rounds: 1
+config :app, :github, client_id: nil, client_secret: nil
 
 config :ash,
   policies: [show_policy_breakdowns?: true],

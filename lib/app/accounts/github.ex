@@ -12,19 +12,16 @@ defmodule App.Accounts.Github do
   are absent so the UI and callback both degrade to a neutral sign-in error.
   """
   def enabled? do
-    present = fn key ->
-      value = System.get_env(key)
-      is_binary(value) and String.trim(value) != ""
-    end
-
-    present.("GITHUB_CLIENT_ID") and present.("GITHUB_CLIENT_SECRET")
+    {:ok, id} = client_id()
+    {:ok, secret} = client_secret()
+    is_binary(id) and id != "" and is_binary(secret) and secret != ""
   end
 
   @doc "The OAuth client ID, or nil when not configured."
-  def client_id, do: {:ok, env("GITHUB_CLIENT_ID")}
+  def client_id, do: {:ok, configured(:client_id, "GITHUB_CLIENT_ID")}
 
   @doc "The OAuth client secret, or nil when not configured."
-  def client_secret, do: {:ok, env("GITHUB_CLIENT_SECRET")}
+  def client_secret, do: {:ok, configured(:client_secret, "GITHUB_CLIENT_SECRET")}
 
   @doc """
   The callback URI base. Ash Authentication appends `user/github/callback`, so
@@ -32,6 +29,13 @@ defmodule App.Accounts.Github do
   """
   def redirect_uri do
     {:ok, env("GITHUB_REDIRECT_URI") || AppWeb.Endpoint.url() <> "/auth"}
+  end
+
+  defp configured(key, variable) do
+    case Keyword.fetch(Application.get_env(:app, :github, []), key) do
+      {:ok, value} -> value
+      :error -> env(variable)
+    end
   end
 
   defp env(key) do

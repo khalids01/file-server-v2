@@ -28,6 +28,5 @@ defmodule App.Accounts do
     resource App.Accounts.User
     resource App.Accounts.UserIdentity
     resource App.Accounts.OtpChallenge
-    resource App.Accounts.ApiKey
   end
 end

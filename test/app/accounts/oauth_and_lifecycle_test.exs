@@ -3,98 +3,104 @@ defmodule App.Accounts.OAuthAndLifecycleTest do
   import App.AuthHelpers
   alias App.Accounts.User
 
-  test "GitHub cannot auto-link a different subject to an existing email" do
+  defp github(info),
+    do:
+      AshAuthentication.Strategy.action(
+        AshAuthentication.Info.strategy!(User, :github),
+        :register,
+        %{user_info: info, oauth_tokens: %{"access_token" => "must-not-be-stored"}}
+      )
+
+  test "unverified and missing GitHub emails cannot register or take over existing users" do
     existing = user("existing-github@example.com")
-    strategy = AshAuthentication.Info.strategy!(User, :github)
 
     assert {:error, _} =
-             AshAuthentication.Strategy.action(strategy, :register, %{
-               user_info: %{
-                 "sub" => "attacker-subject",
-                 "email" => to_string(existing.email),
-                 "email_verified" => true
-               },
-               oauth_tokens: %{}
+             github(%{
+               "sub" => "unverified",
+               "email" => to_string(existing.email),
+               "email_verified" => false
              })
 
+    assert {:error, _} = github(%{"sub" => "missing", "email_verified" => true})
     assert Ash.count!(App.Accounts.UserIdentity, authorize?: false) == 0
   end
 
-  test "new GitHub identity is persisted without provider tokens and requires email proof" do
-    strategy = AshAuthentication.Info.strategy!(User, :github)
+  test "verified GitHub registration signs in immediately and stores no OAuth tokens" do
+    assert {:ok, user} =
+             github(%{
+               "sub" => "new-subject",
+               "email" => "github-new@example.com",
+               "email_verified" => true,
+               "name" => "GitHub user"
+             })
 
-    result =
-      AshAuthentication.Strategy.action(strategy, :register, %{
-        user_info: %{
-          "sub" => "new-subject",
-          "email" => "github-new@example.com",
-          "name" => "GitHub user"
-        },
-        oauth_tokens: %{"access_token" => "must-not-be-stored"}
-      })
-
-    # The library can return an unconfirmed-user failure after persisting registration.
-    assert match?({:ok, %User{}}, result) or
-             match?(
-               {:error,
-                %AshAuthentication.Errors.AuthenticationFailed{
-                  caused_by: %AshAuthentication.Errors.UnconfirmedUser{}
-                }},
-               result
-             )
-
-    user = Ash.get!(User, [email: "github-new@example.com"], authorize?: false)
-    refute user.confirmed_at
-    refute App.Accounts.active_user(user)
+    assert user.confirmed_at
+    assert App.Accounts.active_user(user)
     [identity] = Ash.read!(App.Accounts.UserIdentity, authorize?: false)
     assert identity.user_id == user.id
     refute identity.access_token
     refute identity.refresh_token
-    assert_receive {:email, mail}
-    assert mail.subject == "Confirm your Serve account"
-  end
+    refute_receive {:email, _}
 
-  test "password reset can add a password to a verified account, revokes old tokens and cannot replay" do
-    user = user("reset@example.com")
-    strategy = AshAuthentication.Info.strategy!(User, :password)
-
-    assert :ok =
-             AshAuthentication.Strategy.action(strategy, :reset_request, %{
-               email: "reset@example.com"
+    assert {:ok, returning} =
+             github(%{
+               "sub" => "new-subject",
+               "email" => "github-new@example.com",
+               "email_verified" => true
              })
 
-    assert_receive {:email, mail}
-    [_, token] = Regex.run(~r{/password-reset/([^\s]+)}, mail.text_body)
-
-    params = %{
-      "reset_token" => token,
-      "password" => "a-new-long-password",
-      "password_confirmation" => "a-new-long-password"
-    }
-
-    assert {:ok, updated} = AshAuthentication.Strategy.action(strategy, :reset, params)
-    assert Bcrypt.verify_pass("a-new-long-password", updated.hashed_password)
-    assert {:error, _} = AshAuthentication.Strategy.action(strategy, :reset, params)
-
-    assert {:ok, signed_in} =
-             AshAuthentication.Strategy.action(strategy, :sign_in, %{
-               email: "reset@example.com",
-               password: "a-new-long-password"
-             })
-
-    assert signed_in.id == user.id
-    assert {:ok, %{"jti" => jti}} = AshAuthentication.Jwt.peek(user.__metadata__.token)
-    stored = Ash.get!(App.Accounts.Token, jti, authorize?: false, not_found_error?: false)
-    assert is_nil(stored) or stored.purpose == "revocation"
+    assert returning.id == user.id
   end
 
-  test "HTTP authentication requests have a separate IP budget" do
+  test "a verified primary GitHub email can link to the same email-code account" do
+    existing = user("link@example.com")
+
+    assert {:ok, linked} =
+             github(%{
+               "sub" => "verified-link",
+               "email" => "link@example.com",
+               "email_verified" => true
+             })
+
+    assert linked.id == existing.id
+    assert Ash.count!(User, authorize?: false) == 1
+
+    assert {:error, _} =
+             github(%{
+               "sub" => "different-github",
+               "email" => "link@example.com",
+               "email_verified" => true
+             })
+  end
+
+  test "verified GitHub email can confirm a legacy account, without confirming a different stored email" do
+    existing = user("legacy@example.com")
+    App.Repo.query!("UPDATE users SET confirmed_at=NULL WHERE email=$1", ["legacy@example.com"])
+
+    assert {:ok, confirmed} =
+             github(%{
+               "sub" => "legacy-provider",
+               "email" => "legacy@example.com",
+               "email_verified" => true
+             })
+
+    assert confirmed.id == existing.id
+    assert App.Accounts.active_user(confirmed)
+
+    assert {:ok, returning} =
+             github(%{
+               "sub" => "legacy-provider",
+               "email" => "changed@example.com",
+               "email_verified" => true
+             })
+
+    assert returning.id == existing.id
+    assert to_string(returning.email) == "legacy@example.com"
+    assert returning.confirmed_at == confirmed.confirmed_at
+  end
+
+  test "HTTP authentication attempts have a shared IP budget" do
     for _ <- 1..60, do: assert(App.Accounts.RateLimit.allow_auth_ip?("192.0.2.99"))
     refute App.Accounts.RateLimit.allow_auth_ip?("192.0.2.99")
-  end
-
-  test "password attempts are bounded by a durable per-identity counter" do
-    for _ <- 1..10, do: assert(App.Accounts.RateLimit.allow_password?("limit@example.com"))
-    refute App.Accounts.RateLimit.allow_password?("limit@example.com")
   end
 end

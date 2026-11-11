@@ -1,75 +1,49 @@
 <Layouts.auth flash={@flash}>
-  <p class="mb-3 text-xs font-bold uppercase tracking-widest text-indigo-600">Welcome back</p>
-  <h1 class="text-3xl font-semibold tracking-tight">Your workspace awaits.</h1>
-  <p class="mb-7 mt-3 text-sm leading-6 text-slate-500">
-    Sign in to manage your applications and access.
-  </p>
-  <.form
-    for={to_form(%{}, as: :user)}
-    id="password-sign-in"
-    action="/auth/user/password/sign_in"
-    class="space-y-4"
+  <div class="mb-7 text-center">
+    <span class="mx-auto mb-5 flex size-11 items-center justify-center rounded-xl border border-border bg-muted/50"><.icon
+      name="hero-server-stack"
+      class="size-5"
+    /></span>
+    <h1 class="text-2xl font-semibold tracking-tight">Welcome to File Server</h1>
+    <p class="mt-2 text-sm leading-6 text-muted-foreground">
+      Sign in or create your account. No passwords.
+    </p>
+  </div>
+  <.button
+    :if={@github?}
+    id="github-sign-in"
+    href="/auth/user/github"
+    variant="outline"
+    class="w-full"
   >
+    <.icon name="hero-code-bracket" class="size-4" />Continue with GitHub
+  </.button>
+  <.button
+    :if={!@github?}
+    id="github-unavailable"
+    variant="outline"
+    class="w-full"
+    disabled
+    title="GitHub OAuth credentials have not been configured"
+  >GitHub unavailable</.button>
+  <div class="my-6 flex items-center gap-3 text-[11px] text-muted-foreground">
+    <span class="h-px flex-1 bg-border"></span>OR CONTINUE WITH EMAIL<span class="h-px flex-1 bg-border"></span>
+  </div>
+  <.form for={to_form(%{}, as: :email)} id="otp-request" action="/sign-in/otp" class="space-y-4">
     <.input
       id="sign-in-email"
-      name="user[email]"
+      name="email"
       type="email"
       label="Email address"
+      placeholder="you@example.com"
       autocomplete="email"
+      maxlength="254"
       required
     />
-    <.input
-      id="sign-in-password"
-      name="user[password]"
-      type="password"
-      label="Password"
-      autocomplete="current-password"
-      required
-    />
-    <.link href="/forgot-password" class="block text-right text-xs text-indigo-600">Forgot password?</.link>
-    <.button class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700">Sign in</.button>
+    <.button type="submit" class="w-full">Send one-time code
+    <.icon name="hero-arrow-right" class="size-4" /></.button>
   </.form>
-  <div class="my-6 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-    <span class="h-px flex-1 bg-slate-100"></span>Or continue with<span class="h-px flex-1 bg-slate-100"></span>
-  </div>
-  <div class="grid grid-cols-2 gap-3">
-    <.link
-      id="email-code-option"
-      href="/sign-in/otp"
-      class="rounded-xl border border-slate-200 px-3 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
-    >Email code</.link>
-    <.link
-      :if={@github?}
-      id="github-sign-in"
-      href="/auth/user/github"
-      class="rounded-xl border border-slate-200 px-3 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
-    >GitHub ↗</.link>
-    <span
-      :if={!@github?}
-      class="rounded-xl border border-dashed border-slate-200 px-3 py-3 text-center text-sm text-slate-400"
-      title="Set GitHub OAuth credentials to enable"
-    >GitHub · not set up</span>
-  </div>
-  <details class="mt-5 text-sm text-slate-500">
-    <summary class="cursor-pointer text-center text-indigo-600">Prefer a magic link?</summary>
-    <.form
-      for={to_form(%{}, as: :user)}
-      id="magic-link-request"
-      action="/auth/user/magic_link/request"
-      class="mt-4 space-y-3"
-    >
-      <.input
-        id="magic-link-email"
-        name="user[email]"
-        type="email"
-        label="Email address"
-        required
-      />
-      <.button class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Email me a sign-in link</.button>
-    </.form>
-  </details>
-  <p class="mt-7 text-center text-sm text-slate-500">
-    New to Serve?
-    <.link href="/register" class="font-semibold text-indigo-600">Create an account</.link>
+  <p class="mt-5 text-center text-xs leading-5 text-muted-foreground">
+    We'll send a six-digit code to your inbox.<br />It expires in 10 minutes.
   </p>
 </Layouts.auth>

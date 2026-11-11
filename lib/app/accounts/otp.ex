@@ -51,15 +51,24 @@ defmodule App.Accounts.Otp do
               })
               |> App.Repo.insert!()
 
-              {:send, code}
+              {:send, code, id}
             end
           end
         end)
 
       case result do
-        {:ok, {:send, code}} ->
-          App.Accounts.User.Senders.SendOtpEmail.send(identity, code)
-          :ok
+        {:ok, {:send, code, id}} ->
+          case App.Accounts.User.Senders.SendOtpEmail.send(identity, code) do
+            :ok ->
+              :ok
+
+            {:error, :delivery_failed} ->
+              App.Repo.update_all(from(c in OtpChallengeRecord, where: c.id == ^id),
+                set: [revoked_at: DateTime.utc_now()]
+              )
+
+              {:error, :delivery_failed}
+          end
 
         {:ok, :neutral} ->
           :ok

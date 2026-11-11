@@ -11,10 +11,10 @@ defmodule AppWeb.MvpRoutesTest do
     conn: conn
   } do
     doc = conn |> get("/sign-in") |> html_response(200) |> LazyHTML.from_document()
-    assert length(LazyHTML.query(doc, "#password-sign-in") |> LazyHTML.to_tree()) == 1
-    conn |> get("/register") |> html_response(200)
+    assert length(LazyHTML.query(doc, "#otp-request") |> LazyHTML.to_tree()) == 1
+    assert conn |> get("/register") |> redirected_to() == "/sign-in"
     conn |> get("/sign-in/otp") |> html_response(200)
-    conn |> get("/forgot-password") |> html_response(200)
+    conn |> get("/forgot-password") |> response(404)
     assert conn |> get("/auth/user/github") |> redirected_to() == "/sign-in"
     assert {:error, {:redirect, %{to: "/sign-in"}}} = live(conn, "/dashboard")
   end
@@ -31,39 +31,35 @@ defmodule AppWeb.MvpRoutesTest do
     assert {:error, {:redirect, %{to: "/sign-in"}}} = live(recycle(conn), "/dashboard/admin")
   end
 
-  test "password reset invalidates an old browser session and HTTP password login restores access",
-       %{conn: conn} do
-    user = user("password-browser@example.com")
-    old = conn |> signed_in(user) |> get("/dashboard")
-    strategy = AshAuthentication.Info.strategy!(App.Accounts.User, :password)
+  test "password, reset, magic-link and personal API-key login routes are absent", %{conn: conn} do
+    for path <- [
+          "/auth/user/password/sign_in",
+          "/auth/user/password/register",
+          "/auth/user/password/reset_request",
+          "/auth/user/magic_link/request",
+          "/auth/user/api_key"
+        ] do
+      conn |> init_test_session(%{}) |> post(path, %{}) |> response(404)
+    end
 
-    assert :ok =
-             AshAuthentication.Strategy.action(strategy, :reset_request, %{
-               email: "password-browser@example.com"
-             })
+    for path <- ["/password-reset/token", "/magic_link/token", "/confirm_new_user/token"] do
+      conn |> get(path) |> response(404)
+    end
+  end
 
-    assert_receive {:email, mail}
-    [_, token] = Regex.run(~r{/password-reset/([^\s]+)}, mail.text_body)
+  test "stored theme preference is rendered before app JS and invalid values fall back safely", %{
+    conn: conn
+  } do
+    doc =
+      conn
+      |> put_req_cookie("file-server-theme", "dark")
+      |> get("/sign-in")
+      |> html_response(200)
+      |> LazyHTML.from_document()
 
-    assert {:ok, _} =
-             AshAuthentication.Strategy.action(strategy, :reset, %{
-               "reset_token" => token,
-               "password" => "browser-password-long",
-               "password_confirmation" => "browser-password-long"
-             })
-
-    assert {:error, {:redirect, %{to: "/sign-in"}}} = live(recycle(old), "/dashboard")
-
-    fresh =
-      build_conn()
-      |> init_test_session(%{})
-      |> post("/auth/user/password/sign_in", %{
-        user: %{email: "password-browser@example.com", password: "browser-password-long"}
-      })
-
-    assert redirected_to(fresh) == "/dashboard"
-    assert {:ok, view, _} = live(recycle(fresh), "/dashboard")
-    assert has_element?(view, "#tenant-switcher")
+    assert length(LazyHTML.query(doc, "html.dark[data-theme=dark]") |> LazyHTML.to_tree()) == 1
+    assert length(LazyHTML.query(doc, "[data-theme-choice]") |> LazyHTML.to_tree()) == 3
+    assert AppWeb.Layouts.theme_preference(%{"file-server-theme" => "malicious"}) == "system"
   end
 
   test "HTTP application keys authenticate only their application and reject browser origin", %{

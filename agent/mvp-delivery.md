@@ -1,5 +1,11 @@
 # MVP delivery — 2026-11-11
 
+**Superseded auth/theme details:** On 2026-11-12, user sign-in changed to GitHub
+and email OTP only. Password/reset/magic-link/personal-key sign-in was removed;
+SMTP and a shadcn-style light/dark/system theme were added. Current tests are
+37 Elixir + 4 JavaScript. See root README and 04-authentication.md. Historical
+notes below describe the earlier milestone and are not current auth requirements.
+
 ## Implemented
 
 - Custom Serve landing, sign-in/register/reset request pages and email-code UI.

@@ -1,5 +1,10 @@
 # Replacement plan
 
+Auth/theme update, 2026-11-12: only GitHub and email OTP are in scope for user
+sign-in. Password, magic-link and personal API-key sign-in requirements below are
+superseded by [04-authentication.md](04-authentication.md). Integration keys remain
+required. The UI now uses shadcn-style components and light/dark/system themes.
+
 ## Outcome and scope
 
 Deliver a self-hostable Phoenix LiveView + Ash replacement for Serve v1 with:

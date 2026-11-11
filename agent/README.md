@@ -4,9 +4,14 @@ Prepared 2026-11-11. Status: **owner-workspace MVP implemented; full replacement
 
 See [mvp-delivery.md](mvp-delivery.md) for the current testable slice and limitations.
 
-Goal: replace the existing Serve v1 with one Phoenix/Ash application, preserve
-working storage integrations, and add GitHub, password, and emailed one-time-code
-authentication alongside the existing magic links and API keys.
+Current auth/theme requirement (2026-11-12): GitHub + emailed one-time codes only,
+SMTP delivery, shadcn-style components and light/dark/system themes. The earlier
+password/magic-link/personal-key login plan is superseded. Application keys remain
+backend integration credentials. See [authentication](04-authentication.md) and
+the root README for current behavior.
+
+Goal: replace the existing Serve v1 with one Phoenix/Ash application and preserve
+working storage integrations.
 
 Read in this order:
 
@@ -38,6 +43,6 @@ Read in this order:
 
 The original scaffold is commit `cbd5d3f`; the first landing/auth/workspace/admin
 MVP is `0b13223`. Follow-up security and verification work is documented in
-[mvp-delivery.md](mvp-delivery.md). `mix precommit` currently passes 32 tests.
+[mvp-delivery.md](mvp-delivery.md). Current verification: 37 Elixir tests + 4 JavaScript theme tests.
 These checks cover the MVP, not v1 storage parity. Full tenant membership/grants,
 file storage, jobs, compatibility imports and production cutover remain planned.

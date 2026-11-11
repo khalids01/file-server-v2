@@ -1,21 +1,23 @@
 <Layouts.auth flash={@flash}>
-  <p class="mb-3 text-xs font-bold uppercase tracking-widest text-indigo-600">
-    Passwordless access
+  <h1 class="text-2xl font-semibold tracking-tight">Sign in with email</h1>
+  <p class="mb-6 mt-2 text-sm leading-6 text-muted-foreground">
+    A one-time code. No password to remember.
   </p>
-  <h1 class="text-2xl font-semibold tracking-tight">Sign in with a code</h1>
-  <p class="mb-7 mt-3 text-sm leading-6 text-slate-500">
-    We'll email you a six-digit code. No password to remember.
-  </p>
-  <.form for={to_form(%{})} id="otp-request" action="/sign-in/otp" class="space-y-5">
+  <.form for={to_form(%{})} id="otp-request" action="/sign-in/otp" class="space-y-4">
     <.input
       id="otp-email"
       name="email"
       type="email"
       label="Email address"
+      placeholder="you@example.com"
       autocomplete="email"
+      maxlength="254"
       required
     />
-    <.button class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700">Send code</.button>
+    <.button type="submit" class="w-full">Send one-time code</.button>
   </.form>
-  <.link href="/sign-in" class="mt-6 block text-center text-sm text-indigo-600">Other sign-in options</.link>
+  <.link
+    href="/sign-in"
+    class="mt-6 block text-center text-sm text-muted-foreground hover:text-foreground"
+  >Back to sign in</.link>
 </Layouts.auth>

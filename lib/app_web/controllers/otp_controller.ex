@@ -19,10 +19,15 @@ defmodule AppWeb.OtpController do
         |> put_session(:pending_otp_email, email)
         |> render(:verify, email: email, error: nil)
 
-      {:error, _} ->
-        conn
-        |> put_flash(:error, "Too many requests. Please wait and try again.")
-        |> render(:new)
+      {:error, reason} ->
+        {status, message} =
+          case reason do
+            :rate_limited -> {429, "Too many requests. Please wait a minute and try again."}
+            :delivery_failed -> {503, "We couldn't send the code. Please try again shortly."}
+            _ -> {422, "Enter a valid email address."}
+          end
+
+        conn |> put_status(status) |> put_flash(:error, message) |> render(:new)
     end
   end
 

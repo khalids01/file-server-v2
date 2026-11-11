@@ -1,11 +1,5 @@
 defmodule App.Accounts.RateLimit do
   @moduledoc "Atomic shared-database throttling for password attempts."
-  def allow_password?(email) do
-    identity = email |> to_string() |> String.trim() |> String.downcase()
-
-    allow?("password", identity, 10)
-  end
-
   def allow_auth_ip?(ip), do: allow?("http", ip, 60)
 
   defp allow?(kind, identity, limit) do

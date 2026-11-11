@@ -1,25 +1,16 @@
 defmodule App.AuthHelpers do
   import ExUnit.Assertions
 
-  def request_magic_link(email) do
-    strategy = AshAuthentication.Info.strategy!(App.Accounts.User, :magic_link)
-    assert :ok = AshAuthentication.Strategy.action(strategy, :request, %{email: email})
-    assert_receive {:email, message}
-    [_, token] = Regex.run(~r{/magic_link/([^\s]+)}, message.text_body)
-    {strategy, token}
+  def request_code(email, ip \\ "127.0.0.1") do
+    assert :ok = App.Accounts.Otp.request_sign_in(email, ip)
+    assert_receive {:email, mail}
+    [_, code] = Regex.run(~r/code is (\d{6})/, mail.text_body)
+    code
   end
 
   def user(email) do
-    {strategy, token} = request_magic_link(email)
-    {:ok, user} = AshAuthentication.Strategy.action(strategy, :sign_in, %{token: token})
+    code = request_code(email)
+    {:ok, user} = App.Accounts.Otp.verify_sign_in(email, code, "127.0.0.1")
     user
-  end
-
-  def api_key(user, seconds \\ 3600) do
-    App.Accounts.ApiKey
-    |> Ash.Changeset.for_create(:create, %{expires_at: DateTime.add(DateTime.utc_now(), seconds)},
-      actor: user
-    )
-    |> Ash.create!()
   end
 end

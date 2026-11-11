@@ -1,14 +1,18 @@
-# Serve v2 — landing, authentication and workspace MVP
+# File Server v2
 
-One Phoenix 1.8.16 / Ash application, directly in this directory. This release is
-ready for local testing of sign-in, owner-isolated workspaces, applications,
-access keys and operator administration. It is **not yet a replacement for v1's
-file storage**. V1 remains unchanged in `../v1`.
+Phoenix + Ash workspace MVP with **only GitHub and emailed one-time codes for user
+sign-in**. Passwords, password reset, magic links, remember-me strategies and personal
+API-key sign-in have been removed. Application keys remain server-to-server
+integration credentials; they cannot sign a user into the dashboard.
 
-## Start with your existing database
+The UI uses Phoenix-native components styled after shadcn/ui: neutral semantic
+colors, bordered cards, consistent controls, focus rings and light/dark/system modes.
+DaisyUI is removed. The theme menu is in the header; preference persists across
+reloads, tabs and LiveView navigation. No React runtime is required.
 
-Elixir 1.20.5 / Erlang 29.1.2 are pinned in `.tool-versions`. Run Mix inside `v2`.
-Your local `.env` is ignored by Git and is **not loaded automatically**.
+## Run locally
+
+Use the Elixir/Erlang versions pinned in `.tool-versions`. From `v2`:
 
 ```bash
 cd /home/khalid/Desktop/projects/saas/file-server/v2
@@ -19,143 +23,114 @@ mix setup
 mix phx.server
 ```
 
-Source only your own trusted, shell-compatible file. Comments start with plain
-`#`. `DATABASE_URL` overrides development host, port, username, password and database
-name, including `DB_PORT`. For your existing instance use a URL shaped like
-`postgresql://USER:PASSWORD@localhost:5432/file_server_v2`. `mix setup` creates the
-database if permitted, applies additive migrations, and builds assets. It does not
-import v1 data. Do not point it at the v1 database.
+`.env` is ignored by Git and is **not loaded automatically**. Source only your own
+trusted shell-compatible file. Restart Phoenix after changing credentials.
 
-Alternatively, use the dedicated local PostgreSQL container:
+An exported `DATABASE_URL` overrides development host/port/database/credentials.
+For your existing PostgreSQL use a URL such as
+`postgresql://USER:PASSWORD@localhost:5432/file_server_v2` (never the v1 database).
+Otherwise start the provided fixture database with `docker compose up -d db`;
+defaults are localhost:5434, postgres/postgres, `app_dev`. Tests use a separate
+`app_test` database on port 5434. No migration is needed specifically for this theme
+and authentication change; old credential columns/tables are retained but unused.
 
-```bash
-docker compose up -d db
-unset DATABASE_URL
-mix setup
-mix phx.server
+## Email through SMTP
+
+Swoosh + `gen_smtp` is the Elixir equivalent of the previous Nodemailer setup.
+Use your existing variables:
+
+```dotenv
+EMAIL=your-account@gmail.com
+EMAIL_PASSWORD=your-gmail-app-password
+EMAIL_FROM="File Server"
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
 ```
 
-Compose binds PostgreSQL 18 to `127.0.0.1:5434`, credentials `postgres/postgres`,
-database `app_dev`. Tests use separate `app_test` on this port and ignore the
-normal `DATABASE_URL`; `DB_HOST`/`DB_PORT` can select a separate test instance.
-Do not run tests against a real application database. `docker compose stop db`
-stops the local fixture service without removing its data volume.
+`EMAIL_FROM` is the **display name**; the actual sender address defaults to `EMAIL`.
+Use `EMAIL_FROM_ADDRESS` only for an authorized alternate sender. Gmail's supported
+app-password setup is described in [Google's instructions](https://support.google.com/accounts/answer/185833).
+Do not commit credentials or use an ordinary Gmail account password here.
 
-## What to test
+Port 465 uses implicit TLS, authentication and certificate/hostname verification.
+Port 587 uses required STARTTLS with the same verification. When EMAIL and
+EMAIL_PASSWORD are both blank, development uses `/dev/mailbox`; with credentials
+present it sends actual SMTP email, and those messages aren't saved in the local
+mailbox. Partial credentials cause a clear startup configuration error. Production
+requires configured SMTP. Tests always use isolated test mail, even if your shell
+contains real email credentials.
 
-1. Open [the landing page](http://localhost:4000), then **Get started** or **Sign in**.
-2. For the fastest path, choose **Email code**. Open
-   [the development mailbox](http://localhost:4000/dev/mailbox), copy the six-digit
-   code, and submit it. A personal workspace is created on first dashboard entry.
-3. Try password registration. Confirm the emailed link before signing in. Password
-   reset also lets an email-code/magic-link account add a password safely.
-4. Explore Overview, Applications, Workspace settings and Profile. Create a second
-   workspace; switching should show separate application lists.
-5. Create an application, open **Manage keys**, and issue a read-only key. Copy it
-   immediately; only its fingerprint is shown afterward. New keys expire in 30 days.
-6. Test the application identity endpoint, then revoke the key and repeat:
+Sign in at `/sign-in`, enter your email and submit the six-digit code. A successful
+first sign-in creates the account; the dashboard creates its personal workspace.
+Codes expire in ten minutes, allow three wrong attempts, and cannot be replayed.
+Resend cooldown is sixty seconds; request limits are five/hour/email and twenty/hour/IP.
+A shared sixty/minute/IP limit protects auth POSTs. Challenge-bound HMACs and
+PostgreSQL locks protect code storage, rate enforcement and concurrent consumption.
+Delivery failures revoke the code and show a generic error without provider secrets.
+
+## GitHub sign-in
+
+Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `.env`. Register the callback:
+
+```text
+http://localhost:4000/auth/user/github/callback
+```
+
+For another host/port set the matching `GITHUB_REDIRECT_URI`. Production should use
+an HTTPS callback and a separate OAuth application. Sign-in is disabled gracefully
+until credentials exist.
+
+The adapter requests `read:user,user:email` and fetches the primary email plus its
+verification flag from GitHub's `/user/emails`. A verified primary email is required.
+GitHub and email-code sign-in share an account when that verified email matches.
+An unverified claim cannot register/link an account, and a different GitHub subject
+cannot silently replace an already linked provider identity. Returning GitHub users
+resolve by their stable provider ID. Provider access/refresh tokens are discarded.
+
+## Dashboard and operator tools
+
+- `/dashboard`: real workspace/application overview and tenant switching.
+- `/dashboard/applications`: create applications; issue scoped, thirty-day keys;
+  reveal plaintext once and revoke immediately.
+- `/dashboard/settings`: view workspace identity and create another workspace.
+- `/dashboard/profile`: edit display name; sign-in is GitHub or email code only.
+- `/dashboard/admin`: operator-only user list, ban/unban and signup toggle.
+
+No signup becomes an operator. After verifying your own account, promote it using
+the same local database environment:
+
+```bash
+mix app.operator you@example.com
+```
+
+Refresh/sign in again, then test admin controls with a separate test account.
+Bans are rechecked on session loading, dashboard events and key use. Operator
+status does not grant access to other tenants. There are no membership-write APIs
+outside trusted owner onboarding; invitations and granular app grants remain planned.
+
+For backend application-key testing:
 
 ```bash
 curl -H "Authorization: Bearer $SERVE_APPLICATION_KEY" \
   http://localhost:4000/api/v2/application
 ```
 
-The response identifies the authorized application and tenant and explicitly
-returns `storage_ready: false`. This is a connection check, not a working files API.
-Application keys cannot read `/api/json/users` or access another tenant. Requests
-with a browser `Origin` header are rejected; keys belong on a backend.
+This returns the authorized tenant/application identity and `storage_ready: false`.
+Keys do not authenticate browsers; requests carrying Origin are rejected. The
+self-only `/api/json/users` API now uses the existing GitHub/OTP browser session,
+not personal bearer credentials. OpenAPI remains at `/api/json/open_api`.
+`/admin`, `/dev/dashboard`, `/dev/mailbox` and LiveDebugger are development tools;
+the product admin is `/dashboard/admin`.
 
-### Operator administration
+## Storage environment
 
-No signup becomes an operator automatically. After signing in and verifying your
-email, run this from a trusted local shell using the same database environment:
-
-```bash
-mix app.operator you@example.com
-```
-
-Sign in again or refresh the dashboard, then open **Operator admin** at
-`/dashboard/admin`. Test signup closure/opening and ban/unban with a separate test
-account. Non-operators cannot enter this page, grant themselves operator status,
-or change platform settings. An operator cannot ban their own account. Bans are
-rechecked for sessions, existing LiveView events and key use. Operator status does
-not grant access to other users' workspaces.
-
-### GitHub OAuth
-
-Create an OAuth application in GitHub's developer settings. Configure:
-
-```bash
-GITHUB_CLIENT_ID=your-client-id
-GITHUB_CLIENT_SECRET=your-client-secret
-GITHUB_REDIRECT_URI=http://localhost:4000/auth/user/github/callback
-```
-
-Add these to your ignored `.env`, load it and restart Phoenix. Use a distinct
-OAuth application and HTTPS callback in production. The redirect defaults to the
-configured Phoenix endpoint's `/auth` path, with the callback suffix appended by
-Ash. Verify the full callback matches GitHub's configuration.
-
-GitHub is shown as unconfigured until credentials exist. New GitHub accounts must
-confirm their email locally; subsequent sign-ins resolve the stored provider
-subject. Provider tokens are discarded. An existing account is **not auto-linked
-by matching email**. Explicit linking/unlinking is deferred, so an existing
-email-code/password account cannot simply acquire GitHub access through an email
-match. Automated tests cover identity creation and collision rejection; a real
-GitHub network callback still requires operator-provided credentials and testing.
-
-### Auth behavior
-
-- Magic links remain available under **Prefer a magic link?** on Sign in.
-- Email codes expire after ten minutes, allow three wrong attempts, are single-use,
-  and have a sixty-second resend cooldown. Issuance limits: five/hour/identity and
-  twenty/hour/IP. Database locks enforce limits across processes/nodes.
-- Password sign-in is limited to ten attempts/minute/identity. All auth POSTs share
-  a sixty/minute/IP budget and return 429 when exceeded. Proxy deployments must
-  configure trusted remote-IP handling appropriately; arbitrary forwarded headers
-  are not trusted by the app.
-- Codes use an HMAC bound to challenge/identity/purpose; passwords use Bcrypt;
-  application keys are stored only as hashes. Sensitive request fields are filtered.
-- Password reset links expire after one hour; reset revokes existing browser
-  sessions and the reset link cannot be replayed. Application keys are separately
-  managed credentials, not browser sessions.
-- Development email uses Swoosh Local. No real email is sent with this adapter.
-
-## Routes and structure
-
-| Route | Purpose |
-| --- | --- |
-| `/` | Landing |
-| `/sign-in`, `/register`, `/forgot-password`, `/sign-in/otp` | Authentication |
-| `/dashboard` | Verified-account overview and workspace switch |
-| `/dashboard/applications` | Application creation, scoped keys and revocation |
-| `/dashboard/settings` | Workspace identity and workspace creation |
-| `/dashboard/profile` | Display name and password-reset entry |
-| `/dashboard/admin` | Operator-only users and signup policy |
-| `/api/v2/application` | New application-key connection check |
-| `/api/json/users` | Existing personal-key, self-only JSON API |
-| `/api/json/open_api`, `/api/json/swaggerui` | Existing JSON API documentation |
-| `/admin` | Development-only Ash Admin; not the product operator UI |
-| `/dev/mailbox`, `/dev/dashboard` | Development mailbox and telemetry |
-
-LiveDebugger is dev-only, starting at port 4007 and finding an available next port
-if occupied. Check startup output. Auxiliary Mix tasks can coexist with a running
-server; don't start two Phoenix servers on the same `PORT`.
-
-- `lib/app/accounts/`: Ash users, identities/tokens, OTP, shared limits and senders.
-- `lib/app/workspaces/`: tenants, memberships, applications and application keys.
-- `lib/app/platform/`, `lib/app/checks/`: operator controls and authorization.
-- `lib/app_web/controllers/`: landing, session/OTP pages, API check, auth callbacks.
-- `lib/app_web/live/`: dashboard and operator UI.
-- `lib/mix/tasks/app.operator.ex`: explicit local operator bootstrap.
-- `priv/repo/migrations/`, `priv/resource_snapshots/`: schema and Ash snapshots.
-- `agent/`: full v1 replacement roadmap and [delivery status](agent/mvp-delivery.md).
-
-Users/tokens are global identities. Tenant-owned data uses attribute multitenancy.
-The application-key table permits a trusted hash lookup without a tenant so a
-presented key can resolve its tenant; normal resource policies still require an
-active owner/admin and a matching tenant. Key use revalidates the issuer's access.
-Personal scaffold keys remain separate and are not upgraded into application keys.
+Your `S3_*`, `MAX_FILE_SIZE_MB` and legacy `NEXT_PUBLIC_MAX_FILE_SIZE` settings are
+reserved for the planned storage implementation. This update does not implement
+uploads, S3 connections or enforce upload-size settings for a nonexistent endpoint.
+`STORAGE_ENCRYPTION_KEY` is supported as the vault key; a nonempty `CLOAK_KEY` takes
+precedence. It must decode from base64 to exactly 32 bytes. Generate with
+`openssl rand -base64 32`, retain it securely across deployments and back it up
+separately. Neither key is exposed to the browser.
 
 ## Verification
 
@@ -164,44 +139,26 @@ docker compose up -d db
 mix precommit
 mix assets.build
 mix ash.codegen --check
+node --test test/js/theme_test.mjs
 ```
 
-Current verified result: **32 tests passed**, including real OTP concurrency on
-two database connections, password confirmation/reset and session invalidation,
-GitHub identity collision, tenant mutation isolation, bans and key revocation,
-HTTP auth flows and LiveView application/operator forms. Assets and schema checks
-pass. Browser screenshot QA was unavailable; visual desktop/mobile review remains
-a manual acceptance step. Tests do not prove a real GitHub OAuth callback or
-production mail delivery; configure and verify those in staging.
+Verified: **37 Elixir tests + 4 JavaScript theme tests**, warnings-as-errors app
+compilation, assets and schema consistency. Coverage includes two-connection OTP
+consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
+email linking, disabled routes, tenant isolation, bans, key revocation and persisted
+theme preference. Browser host was unavailable, so screenshot/mobile visual QA is
+not claimed. A real Gmail delivery and GitHub OAuth callback require configured
+credentials and manual/staging verification; no real mail was sent during tests.
 
-## Remaining scope
+Relevant files: `lib/app/accounts/`, `lib/app/mailer_config.ex`,
+`lib/app_web/components/`, `assets/css/app.css`, `assets/js/theme.mjs`.
+The full replacement roadmap is under [agent/](agent/README.md). Current behavior
+supersedes the earlier five-method authentication plan. V1 storage/migration,
+file manager, transfers, backups and private delivery remain deferred.
 
-No file upload/download backend, S3/local file manager, storage usage stats,
-transfers, image processing, backups, browser-token SDK integration or v1 importer
-is implemented yet. No memberships can be modified through the MVP: personal
-owner workspaces are usable, while invitations, limited application grants and
-ownership transfer remain on the plan. Application renaming UI, explicit GitHub
-linking/unlinking, session manager/logout-all UI, and audit browsing are deferred.
-Do not migrate production traffic from v1 based on this MVP.
-
-The unified original installation includes Phoenix, Ash/Ash Phoenix, Ash
-PostgreSQL, Ash Authentication/Phoenix, JSON API, Ash Admin, Ash Archival,
-LiveDebugger, Cloak and Ash Cloak. Archival/encrypted-storage resource integration
-belongs to the storage phases; the AES-GCM vault is supervised and tested now.
-Exact package versions are in `mix.lock`; no second Phoenix app was generated.
-
-## Production settings
-
-See `.env.example`. Production requires `DATABASE_URL`, `SECRET_KEY_BASE`,
-`TOKEN_SIGNING_SECRET`, a base64-encoded 32-byte `CLOAK_KEY`, `PHX_HOST`, verified
-`MAIL_FROM`, `MAILGUN_API_KEY`, and `MAILGUN_DOMAIN`. Generate signing values with
-`mix phx.gen.secret` and the encryption key with `openssl rand -base64 32`. Keep
-encryption keys persistent/private and backed up separately. Configure database
-TLS and HTTPS/reverse proxy for your deployment. Test real mail/OAuth before use.
-
-Hex reports advisories for Assent 0.2.13's Apple callback and Cloak 1.1.4's AES-CTR
-cipher. Apple auth and AES-CTR are not enabled; this app uses GitHub and AES-GCM
-and normalizes Cloak's tampered-ciphertext failure result. Ash Authentication pins
-Assent below 0.3, so upgrading it requires a compatibility review. See the
-[Assent advisory](https://osv.dev/vulnerability/EEF-CVE-2026-117656) and
-[Cloak advisory](https://osv.dev/vulnerability/EEF-CVE-2026-95105).
+Production additionally needs DATABASE_URL, SECRET_KEY_BASE, TOKEN_SIGNING_SECRET,
+PHX_HOST, SMTP credentials and a persistent encryption key. Configure HTTPS/proxy
+and database TLS for your deployment; do not switch v1 production traffic yet.
+Existing Assent Apple-auth and Cloak AES-CTR advisories do not concern enabled
+providers/ciphers here; the app uses GitHub and AES-GCM. Recheck compatibility and
+advisories before future dependency/provider changes.

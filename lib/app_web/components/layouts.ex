@@ -34,39 +34,40 @@ defmodule AppWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#f7f8fb] text-slate-900 antialiased">
-      <header class="sticky top-0 z-30 flex h-18 items-center justify-between border-b border-slate-200/80 bg-white/95 px-5 backdrop-blur lg:px-10">
+    <div class="min-h-screen bg-background text-foreground">
+      <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card/95 px-5 backdrop-blur lg:px-8">
         <.link
           href="/"
-          class="flex items-center gap-2.5 text-xl font-bold tracking-tight"
-          aria-label="Serve home"
+          class="flex items-center gap-2.5 text-base font-semibold tracking-tight"
+          aria-label="File Server home"
         >
-          <span class="flex size-9 items-center justify-center rounded-xl bg-indigo-600 text-white"><.icon
+          <span class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><.icon
             name="hero-server-stack-solid"
-            class="size-5"
+            class="size-4"
           /></span>
-          Serve
-          <span class="ml-1 rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-bold tracking-widest text-indigo-600">V2</span>
+          File Server
+          <.badge>v2</.badge>
         </.link>
-        <nav class="flex items-center gap-4 text-sm font-medium">
+        <nav class="flex items-center gap-2 text-sm font-medium" aria-label="Account navigation">
+          <.theme_toggle />
           <%= if @current_user do %>
-            <span class="hidden text-slate-500 sm:block">{to_string(@current_user.email)}</span>
-            <.link href="/sign-out" class="text-slate-600 hover:text-indigo-600">Sign out</.link>
+            <span class="hidden px-2 text-xs text-muted-foreground sm:block">{to_string(
+              @current_user.email
+            )}</span>
+            <.button href="/sign-out" variant="ghost">Sign out</.button>
           <% else %>
-            <.link href="/sign-in" class="text-slate-600 hover:text-indigo-600">Sign in</.link>
-            <.link
-              href="/register"
-              class="rounded-lg bg-slate-900 px-4 py-2.5 text-white transition hover:bg-indigo-600"
-            >Get started <span aria-hidden="true">↗</span></.link>
+            <.button href="/sign-in" variant="ghost">Sign in</.button>
+            <.button href="/sign-in" class="hidden sm:inline-flex">Get started
+            <.icon name="hero-arrow-up-right" class="size-3.5" /></.button>
           <% end %>
         </nav>
       </header>
       <div class={[@section && "mx-auto flex max-w-[1600px] flex-col lg:flex-row"]}>
         <aside
           :if={@section}
-          class="flex gap-1 overflow-x-auto border-b border-slate-200 bg-white p-3 lg:min-h-[calc(100vh-4.5rem)] lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-b-0 lg:p-5"
+          class="flex gap-1 overflow-x-auto border-b border-border bg-card p-3 lg:min-h-[calc(100vh-4rem)] lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-b-0 lg:p-4"
         >
-          <p class="hidden px-3 pb-3 pt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 lg:block">
+          <p class="hidden px-3 pb-3 pt-4 text-xs font-medium text-muted-foreground lg:block">
             Workspace
           </p>
           <.link
@@ -80,20 +81,26 @@ defmodule AppWeb.Layouts do
             }
             navigate={path <> if(@tenant_id, do: "?tenant=" <> @tenant_id, else: "")}
             class={[
-              "flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition",
+              "flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
               if(@section == label,
-                do: "bg-indigo-50 text-indigo-700",
-                else: "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                do: "bg-accent font-medium text-foreground",
+                else: "text-muted-foreground hover:bg-accent hover:text-foreground"
               )
             ]}
-          ><.icon name={icon} class="size-5" />{label}</.link>
+          ><.icon name={icon} class="size-4" />{label}</.link>
           <.link
             :if={@current_user && @current_user.operator}
             navigate="/dashboard/admin"
-            class="mt-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-500 hover:bg-slate-50"
-          ><.icon name="hero-shield-check" class="size-5" />Operator admin</.link>
-          <div class="mt-auto hidden rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-500 lg:block">
-            <strong class="block text-slate-700">Foundation release</strong>Authentication and workspaces are ready to explore. File storage is coming next.
+            class={[
+              "mt-2 flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent",
+              if(@section == "Operator admin",
+                do: "bg-accent font-medium",
+                else: "text-muted-foreground"
+              )
+            ]}
+          ><.icon name="hero-shield-check" class="size-4" />Operator admin</.link>
+          <div class="mt-auto hidden rounded-lg border border-border bg-muted/50 p-4 text-xs leading-5 text-muted-foreground lg:block">
+            <strong class="mb-1 block font-medium text-foreground">Your infrastructure.</strong>Authentication and workspaces are ready. File storage is coming next.
           </div>
         </aside>
         <main class={[@section && "min-w-0 flex-1 p-5 sm:p-8 lg:p-10"]}>
@@ -111,11 +118,9 @@ defmodule AppWeb.Layouts do
   def auth(assigns) do
     ~H"""
     <.app flash={@flash}>
-      <div class="mx-auto max-w-md px-5 py-14 sm:py-20">
-        <div class="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm sm:p-9">
-          {render_slot(@inner_block)}
-        </div>
-        <p class="mt-6 text-center text-xs text-slate-400">Your workspace. Your infrastructure.</p>
+      <div class="mx-auto max-w-md px-5 py-12 sm:py-20">
+        <.card class="p-6 sm:p-8">{render_slot(@inner_block)}</.card>
+        <p class="mt-6 text-center text-xs text-muted-foreground">Your files. Your rules.</p>
       </div>
     </.app>
     """
@@ -170,40 +175,43 @@ defmodule AppWeb.Layouts do
     """
   end
 
-  @doc """
-  Provides dark vs light theme toggle based on themes defined in app.css.
+  def theme_preference(cookies) do
+    value = Map.get(cookies, "file-server-theme")
+    if value in ["light", "dark", "system"], do: value, else: "system"
+  end
 
-  See <head> in root.html.heex which applies the theme before page load.
-  """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 [[data-theme-source=system]_&]:!left-0 transition-[left]" />
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
+    <details id="theme-menu" class="theme-menu relative">
+      <summary
+        class="ui-button ui-button-ghost size-9 !p-0"
+        aria-label="Choose color theme"
+        title="Choose color theme"
       >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
+        <.icon name="hero-sun" class="size-4 dark:hidden" /><.icon
+          name="hero-moon"
+          class="hidden size-4 dark:block"
+        />
+      </summary>
+      <div
+        class="ui-card absolute right-0 top-11 z-50 min-w-36 p-1 shadow-md"
+        aria-label="Color theme"
       >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-      >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-    </div>
+        <button
+          :for={
+            {mode, title, icon} <- [
+              {"light", "Light", "hero-sun"},
+              {"dark", "Dark", "hero-moon"},
+              {"system", "System", "hero-computer-desktop"}
+            ]
+          }
+          type="button"
+          data-theme-choice={mode}
+          aria-pressed="false"
+          class="theme-option flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
+        ><.icon name={icon} class="size-4" />{title}</button>
+      </div>
+    </details>
     """
   end
 end

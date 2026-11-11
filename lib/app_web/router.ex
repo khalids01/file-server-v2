@@ -2,6 +2,7 @@ defmodule AppWeb.Router do
   use AppWeb, :router
 
   use AshAuthentication.Phoenix.Router
+  import AshAuthentication.Plug.Helpers, only: [set_actor: 2]
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -47,9 +48,9 @@ defmodule AppWeb.Router do
   pipeline :api do
     plug :accepts, ["json"]
 
-    plug AshAuthentication.Strategy.ApiKey.Plug,
-      resource: App.Accounts.User,
-      required?: false
+    plug :fetch_session
+    plug :load_from_session
+    plug :set_actor, :user
 
     plug :prepare_json_api
   end
@@ -73,7 +74,7 @@ defmodule AppWeb.Router do
           |> Plug.Conn.put_resp_content_type("application/vnd.api+json")
           |> Plug.Conn.send_resp(
             401,
-            Jason.encode!(%{errors: [%{status: "401", title: "API key required"}]})
+            Jason.encode!(%{errors: [%{status: "401", title: "Sign-in required"}]})
           )
           |> Plug.Conn.halt()
         end
@@ -122,22 +123,6 @@ defmodule AppWeb.Router do
 
     get "/sign-in", SessionController, :new
     get "/register", SessionController, :register
-    get "/forgot-password", SessionController, :forgot
-
-    # Remove this if you do not want to use the reset password feature
-    reset_route auth_routes_prefix: "/auth",
-                overrides: [AppWeb.AuthOverrides, AshAuthentication.Phoenix.Overrides.Default]
-
-    # Remove this if you do not use the confirmation strategy
-    confirm_route App.Accounts.User, :confirm_new_user,
-      auth_routes_prefix: "/auth",
-      overrides: [AppWeb.AuthOverrides, AshAuthentication.Phoenix.Overrides.Default]
-
-    # Remove this if you do not use the magic link strategy.
-    magic_sign_in_route(App.Accounts.User, :magic_link,
-      auth_routes_prefix: "/auth",
-      overrides: [AppWeb.AuthOverrides, AshAuthentication.Phoenix.Overrides.Default]
-    )
   end
 
   # Other scopes may use custom stacks.
