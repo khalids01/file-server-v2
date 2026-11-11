@@ -11,6 +11,19 @@ defmodule AppWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :load_from_session
+    plug :configured_github
+  end
+
+  defp configured_github(conn, _opts) do
+    if Enum.take(conn.path_info, 3) == ["auth", "user", "github"] and
+         not App.Accounts.Github.enabled?() do
+      conn
+      |> put_flash(:error, "GitHub sign-in has not been configured yet.")
+      |> Phoenix.Controller.redirect(to: "/sign-in")
+      |> halt()
+    else
+      conn
+    end
   end
 
   pipeline :api do
@@ -49,6 +62,10 @@ defmodule AppWeb.Router do
     end
   end
 
+  scope "/api/v2", AppWeb do
+    get "/application", ApplicationApiController, :show
+  end
+
   scope "/api/json" do
     pipe_through [:api]
 
@@ -63,16 +80,11 @@ defmodule AppWeb.Router do
     pipe_through :browser
 
     ash_authentication_live_session :authenticated_routes do
-      # in each liveview, add one of the following at the top of the module:
-      #
-      # If an authenticated user must be present:
-      # on_mount {AppWeb.LiveUserAuth, :live_user_required}
-      #
-      # If an authenticated user *may* be present:
-      # on_mount {AppWeb.LiveUserAuth, :live_user_optional}
-      #
-      # If an authenticated user must *not* be present:
-      # on_mount {AppWeb.LiveUserAuth, :live_no_user}
+      live "/dashboard", DashboardLive, :overview
+      live "/dashboard/applications", DashboardLive, :applications
+      live "/dashboard/settings", DashboardLive, :settings
+      live "/dashboard/profile", DashboardLive, :profile
+      live "/dashboard/admin", OperatorLive, :index
     end
   end
 
@@ -80,17 +92,19 @@ defmodule AppWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    get "/sign-in/otp", OtpController, :new
+    post "/sign-in/otp", OtpController, :request_code
+    post "/sign-in/otp/verify", OtpController, :verify
+
     auth_routes AuthController, App.Accounts.User, path: "/auth"
 
     sign_out_route AuthController, "/sign-out",
       overrides: [AppWeb.AuthOverrides, AshAuthentication.Phoenix.Overrides.Default]
 
-    # Remove these if you'd like to use your own authentication views
-    sign_in_route register_path: "/register",
-                  reset_path: "/reset",
-                  auth_routes_prefix: "/auth",
-                  on_mount: [{AppWeb.LiveUserAuth, :live_no_user}],
-                  overrides: [AppWeb.AuthOverrides, AshAuthentication.Phoenix.Overrides.Default]
+    get "/sign-in", SessionController, :new
+    get "/register", SessionController, :register
+    get "/forgot-password", SessionController, :forgot
 
     # Remove this if you do not want to use the reset password feature
     reset_route auth_routes_prefix: "/auth",

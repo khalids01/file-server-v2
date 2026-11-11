@@ -80,7 +80,7 @@ config :spark,
 config :app,
   ecto_repos: [App.Repo],
   generators: [timestamp_type: :utc_datetime],
-  ash_domains: [App.Accounts],
+  ash_domains: [App.Accounts, App.Platform, App.Workspaces],
   ash_authentication: [return_error_on_invalid_magic_link_token?: true]
 
 # Configure the endpoint
@@ -141,3 +141,15 @@ config :phoenix, :json_library, Jason
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
+
+# Authentication inputs must never appear in request logs.
+config :phoenix, :filter_parameters, [
+  "password",
+  "password_confirmation",
+  "token",
+  "reset_token",
+  "confirm",
+  "code",
+  "oauth_tokens",
+  "client_secret"
+]

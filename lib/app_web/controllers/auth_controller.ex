@@ -3,7 +3,7 @@ defmodule AppWeb.AuthController do
   use AshAuthentication.Phoenix.Controller
 
   def success(conn, activity, user, _token) do
-    return_to = get_session(conn, :return_to) || ~p"/"
+    return_to = ~p"/dashboard"
 
     message =
       case activity do
@@ -12,18 +12,31 @@ defmodule AppWeb.AuthController do
         _ -> "You are now signed in"
       end
 
-    conn
-    |> delete_session(:return_to)
-    |> store_in_session(user)
-    # If your resource has a different name, update the assign name here (i.e :current_admin)
-    |> assign(:current_user, user)
-    |> put_flash(:info, message)
-    |> redirect(to: return_to)
+    if App.Accounts.active_user(user) do
+      conn
+      |> configure_session(renew: true)
+      |> delete_session(:return_to)
+      |> store_in_session(user)
+      # If your resource has a different name, update the assign name here (i.e :current_admin)
+      |> assign(:current_user, user)
+      |> put_flash(:info, message)
+      |> redirect(to: return_to)
+    else
+      conn
+      |> put_flash(:info, "Check your email to confirm your account before signing in.")
+      |> redirect(to: ~p"/sign-in")
+    end
   end
 
   def failure(conn, activity, reason) do
     message =
       case {activity, reason} do
+        {_,
+         %AshAuthentication.Errors.AuthenticationFailed{
+           caused_by: %AshAuthentication.Errors.UnconfirmedUser{}
+         }} ->
+          "Check your email to confirm your account before signing in."
+
         {_,
          %AshAuthentication.Errors.AuthenticationFailed{
            caused_by: %Ash.Error.Forbidden{
@@ -54,7 +67,7 @@ defmodule AppWeb.AuthController do
   end
 
   def sign_out(conn, _params) do
-    return_to = get_session(conn, :return_to) || ~p"/"
+    return_to = ~p"/"
 
     conn
     |> clear_session(:app)

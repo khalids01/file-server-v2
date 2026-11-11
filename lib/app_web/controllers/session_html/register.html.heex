@@ -1,0 +1,43 @@
+<Layouts.auth flash={@flash}>
+  <p class="mb-3 text-xs font-bold uppercase tracking-widest text-indigo-600">Make it yours</p>
+  <h1 class="text-3xl font-semibold tracking-tight">Start your workspace.</h1>
+  <p class="mb-7 mt-3 text-sm leading-6 text-slate-500">
+    One account for your projects. Confirm your email to get started.
+  </p>
+  <.form
+    :if={@signup?}
+    for={to_form(%{}, as: :user)}
+    id="password-register"
+    action="/auth/user/password/register"
+    class="space-y-4"
+  >
+    <.input name="user[name]" type="text" label="Your name" autocomplete="name" maxlength="80" />
+    <.input name="user[email]" type="email" label="Email address" autocomplete="email" required />
+    <.input
+      name="user[password]"
+      type="password"
+      label="Password (at least 8 characters)"
+      autocomplete="new-password"
+      minlength="8"
+      required
+    />
+    <.input
+      name="user[password_confirmation]"
+      type="password"
+      label="Confirm password"
+      autocomplete="new-password"
+      required
+    />
+    <.button class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700">Create account</.button>
+  </.form>
+  <p :if={!@signup?} class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+    New registrations are currently disabled. Existing users can still sign in.
+  </p>
+  <p class="mt-6 text-center text-sm text-slate-500">
+    Or use an <.link href="/sign-in/otp" class="font-semibold text-indigo-600">email code</.link>
+    without a password.
+  </p>
+  <p class="mt-5 text-center text-xs text-slate-400">
+    Already have an account? <.link href="/sign-in" class="text-indigo-600">Sign in</.link>
+  </p>
+</Layouts.auth>

@@ -1,0 +1,65 @@
+<Layouts.app flash={@flash} current_user={@current_user} section="Operator admin">
+  <p class="mb-2 text-xs font-semibold uppercase tracking-widest text-indigo-600">
+    Platform controls
+  </p><h1 class="mb-8 text-3xl font-semibold tracking-tight">Operator admin</h1>
+  <div class="mb-7 flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-6">
+    <div>
+      <h2 class="font-semibold">New account registration</h2><p
+        id="signup-status"
+        class="mt-2 text-sm text-slate-500"
+      >
+        {if @signup_enabled,
+          do: "Open — new users may register",
+          else: "Closed — existing users may still sign in"}
+      </p>
+    </div><.button
+      id="toggle-signup"
+      phx-click="toggle_signup"
+      data-confirm="Change registration policy for all sign-in methods?"
+      class="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-600"
+    >{if @signup_enabled, do: "Close registration", else: "Open registration"}</.button>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-6">
+    <h2 class="mb-5 font-semibold">
+      Accounts
+      <span class="ml-2 text-xs font-normal text-slate-400">{@user_count} on this page</span>
+    </h2>
+    <div id="operator-users" phx-update="stream">
+      <div
+        :for={{dom_id, user} <- @streams.users}
+        id={dom_id}
+        class="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 py-4"
+      >
+        <div>
+          <p class="text-sm font-semibold">{to_string(user.email)}</p><p class="mt-1 text-xs text-slate-400">
+            {if user.operator, do: "Operator", else: "User"} · {if user.banned,
+              do: "Banned",
+              else: "Active"} · {if user.confirmed_at,
+              do: "Verified",
+              else: "Awaiting confirmation"}
+          </p>
+        </div><.button
+          :if={user.id != @current_user.id}
+          phx-click={if user.banned, do: "unban", else: "ban"}
+          phx-value-id={user.id}
+          data-confirm="Change this user's account access?"
+          class="rounded-lg px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+        >{if user.banned, do: "Unban", else: "Ban account"}</.button>
+      </div>
+    </div>
+    <div class="mt-5 flex justify-between">
+      <.button
+        :if={@offset > 0}
+        phx-click="previous"
+        class="text-sm font-semibold text-indigo-600"
+      >← Previous</.button><.button
+        :if={@more?}
+        phx-click="next"
+        class="ml-auto text-sm font-semibold text-indigo-600"
+      >Next →</.button>
+    </div>
+  </div>
+  <p class="mt-6 text-xs leading-6 text-slate-400">
+    Bans are rechecked on session loading, dashboard events and application-key use. Operator status does not grant access to other users' workspaces. Promote operators explicitly with the local bootstrap task.
+  </p>
+</Layouts.app>

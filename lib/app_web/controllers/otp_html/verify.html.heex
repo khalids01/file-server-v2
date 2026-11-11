@@ -1,0 +1,25 @@
+<Layouts.auth flash={@flash}>
+  <p class="mb-3 text-xs font-bold uppercase tracking-widest text-indigo-600">Check your inbox</p>
+  <h1 class="text-2xl font-semibold tracking-tight">You're one code away.</h1>
+  <p class="mb-7 mt-3 text-sm leading-6 text-slate-500">
+    If sign-in is available, we've sent a code to <strong>{@email}</strong>. It expires in ten minutes.
+  </p>
+  <.form for={to_form(%{})} id="otp-verify" action="/sign-in/otp/verify" class="space-y-5">
+    <.input
+      name="code"
+      type="text"
+      label="Six-digit code"
+      inputmode="numeric"
+      autocomplete="one-time-code"
+      minlength="6"
+      maxlength="6"
+      pattern="[0-9]{6}"
+      required
+    />
+    <p :if={@error} role="alert" class="text-sm text-rose-600">{@error}</p>
+    <.button class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700">Verify & continue</.button>
+  </.form>
+  <p class="mt-6 text-center text-xs leading-5 text-slate-500">
+    Need another code? Wait sixty seconds, then <.link href="/sign-in/otp" class="text-indigo-600">start again</.link>.
+  </p>
+</Layouts.auth>
