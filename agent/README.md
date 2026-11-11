@@ -1,6 +1,8 @@
 # App v2 replacement planning
 
-Prepared 2026-11-11. Status: **plan only; implementation has not started**.
+Prepared 2026-11-11. Status: **owner-workspace MVP implemented; full replacement still in progress**.
+
+See [mvp-delivery.md](mvp-delivery.md) for the current testable slice and limitations.
 
 Goal: replace the existing Serve v1 with one Phoenix/Ash application, preserve
 working storage integrations, and add GitHub, password, and emailed one-time-code
@@ -29,16 +31,13 @@ Read in this order:
 - Prefer one completed vertical slice over many UI placeholders.
 - Follow `../AGENTS.md`, run its required `mix precommit` check, and verify
   document links and the planning inventory.
-- This directory is a planning handoff, not an instruction to launch subagents or
-  start implementation. The user's current request is **plan first**.
+- This directory records the roadmap. The later user request authorized the MVP
+  implementation, commits and pushes. Do not infer that all remaining phases are complete.
 
-## Baseline
+## Current milestone
 
-The previous setup has Phoenix 1.8.16, Ash, PostgreSQL, magic links, user-owned
-expiring API keys, a self-only user JSON API, development Ash Admin, and
-LiveDebugger. `mix precommit` was rerun after this planning change: compilation passed and all
-11 existing tests passed. Relative document links were also checked. That baseline
-does not demonstrate storage parity.
-
-Tenant resources, a product dashboard, GitHub, password login, and emailed OTP
-login are **not yet implemented**. See the roadmap for their order.
+The original scaffold is commit `855ff11`; the first landing/auth/workspace/admin
+MVP is `7fd0d39`. Follow-up security and verification work is documented in
+[mvp-delivery.md](mvp-delivery.md). `mix precommit` currently passes 32 tests.
+These checks cover the MVP, not v1 storage parity. Full tenant membership/grants,
+file storage, jobs, compatibility imports and production cutover remain planned.

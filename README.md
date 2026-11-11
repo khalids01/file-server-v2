@@ -1,211 +1,207 @@
-# App v2 — Phoenix + Ash foundation
+# Serve v2 — landing, authentication and workspace MVP
 
-One Phoenix 1.8.16 application (`:app`, namespace `App`) lives directly in `v2`.
-This is the foundation for replacing v1. It does **not yet implement v1's file uploads,
-S3/local storage, image processing, tenants, file manager, or data migration**.
-The existing `../v1` application remains independent.
+One Phoenix 1.8.16 / Ash application, directly in this directory. This release is
+ready for local testing of sign-in, owner-isolated workspaces, applications,
+access keys and operator administration. It is **not yet a replacement for v1's
+file storage**. V1 remains unchanged in `../v1`.
 
-## Run locally
+## Start with your existing database
 
-Prerequisites: Elixir 1.20.5 / Erlang OTP 29.1.2 (pinned in `.tool-versions`),
-Docker with Compose, and Git. Use a version manager or install these versions.
+Elixir 1.20.5 / Erlang 29.1.2 are pinned in `.tool-versions`. Run Mix inside `v2`.
+Your local `.env` is ignored by Git and is **not loaded automatically**.
 
 ```bash
 cd /home/khalid/Desktop/projects/saas/file-server/v2
-docker compose up -d db
-mix setup
-mix phx.server
-# Or: iex -S mix phx.server
-```
-
-PostgreSQL 18 listens only on `127.0.0.1:5434`, with development credentials
-`postgres` / `postgres`. Databases: `app_dev` and `app_test`. Override host/port
-with exported `DB_HOST` / `DB_PORT`. Data persists in a Compose volume.
-`docker compose stop` stops the database without removing its data.
-
-Run Mix commands from `v2`, where `.tool-versions` and `mix.exs` live. An exported
-`DATABASE_URL` overrides development database defaults (including host, port,
-credentials and database name). Tests keep their separate `app_test` database.
-For an existing local PostgreSQL instance, put its URL in `.env`, then load it:
-
-```bash
-# From v2; only source your own trusted shell-compatible .env file.
 set -a
 source .env
 set +a
-mix ecto.setup
+mix setup
 mix phx.server
 ```
 
-Use plain `#` comments in `.env`, without Markdown asterisks. `.env` is not loaded
-automatically. When `DATABASE_URL` contains a port, that port overrides `DB_PORT`.
+Source only your own trusted, shell-compatible file. Comments start with plain
+`#`. `DATABASE_URL` overrides development host, port, username, password and database
+name, including `DB_PORT`. For your existing instance use a URL shaped like
+`postgresql://USER:PASSWORD@localhost:5432/file_server_v2`. `mix setup` creates the
+database if permitted, applies additive migrations, and builds assets. It does not
+import v1 data. Do not point it at the v1 database.
 
+Alternatively, use the dedicated local PostgreSQL container:
 
-| URL | Purpose |
+```bash
+docker compose up -d db
+unset DATABASE_URL
+mix setup
+mix phx.server
+```
+
+Compose binds PostgreSQL 18 to `127.0.0.1:5434`, credentials `postgres/postgres`,
+database `app_dev`. Tests use separate `app_test` on this port and ignore the
+normal `DATABASE_URL`; `DB_HOST`/`DB_PORT` can select a separate test instance.
+Do not run tests against a real application database. `docker compose stop db`
+stops the local fixture service without removing its data volume.
+
+## What to test
+
+1. Open [the landing page](http://localhost:4000), then **Get started** or **Sign in**.
+2. For the fastest path, choose **Email code**. Open
+   [the development mailbox](http://localhost:4000/dev/mailbox), copy the six-digit
+   code, and submit it. A personal workspace is created on first dashboard entry.
+3. Try password registration. Confirm the emailed link before signing in. Password
+   reset also lets an email-code/magic-link account add a password safely.
+4. Explore Overview, Applications, Workspace settings and Profile. Create a second
+   workspace; switching should show separate application lists.
+5. Create an application, open **Manage keys**, and issue a read-only key. Copy it
+   immediately; only its fingerprint is shown afterward. New keys expire in 30 days.
+6. Test the application identity endpoint, then revoke the key and repeat:
+
+```bash
+curl -H "Authorization: Bearer $SERVE_APPLICATION_KEY" \
+  http://localhost:4000/api/v2/application
+```
+
+The response identifies the authorized application and tenant and explicitly
+returns `storage_ready: false`. This is a connection check, not a working files API.
+Application keys cannot read `/api/json/users` or access another tenant. Requests
+with a browser `Origin` header are rejected; keys belong on a backend.
+
+### Operator administration
+
+No signup becomes an operator automatically. After signing in and verifying your
+email, run this from a trusted local shell using the same database environment:
+
+```bash
+mix app.operator you@example.com
+```
+
+Sign in again or refresh the dashboard, then open **Operator admin** at
+`/dashboard/admin`. Test signup closure/opening and ban/unban with a separate test
+account. Non-operators cannot enter this page, grant themselves operator status,
+or change platform settings. An operator cannot ban their own account. Bans are
+rechecked for sessions, existing LiveView events and key use. Operator status does
+not grant access to other users' workspaces.
+
+### GitHub OAuth
+
+Create an OAuth application in GitHub's developer settings. Configure:
+
+```bash
+GITHUB_CLIENT_ID=your-client-id
+GITHUB_CLIENT_SECRET=your-client-secret
+GITHUB_REDIRECT_URI=http://localhost:4000/auth/user/github/callback
+```
+
+Add these to your ignored `.env`, load it and restart Phoenix. Use a distinct
+OAuth application and HTTPS callback in production. The redirect defaults to the
+configured Phoenix endpoint's `/auth` path, with the callback suffix appended by
+Ash. Verify the full callback matches GitHub's configuration.
+
+GitHub is shown as unconfigured until credentials exist. New GitHub accounts must
+confirm their email locally; subsequent sign-ins resolve the stored provider
+subject. Provider tokens are discarded. An existing account is **not auto-linked
+by matching email**. Explicit linking/unlinking is deferred, so an existing
+email-code/password account cannot simply acquire GitHub access through an email
+match. Automated tests cover identity creation and collision rejection; a real
+GitHub network callback still requires operator-provided credentials and testing.
+
+### Auth behavior
+
+- Magic links remain available under **Prefer a magic link?** on Sign in.
+- Email codes expire after ten minutes, allow three wrong attempts, are single-use,
+  and have a sixty-second resend cooldown. Issuance limits: five/hour/identity and
+  twenty/hour/IP. Database locks enforce limits across processes/nodes.
+- Password sign-in is limited to ten attempts/minute/identity. All auth POSTs share
+  a sixty/minute/IP budget and return 429 when exceeded. Proxy deployments must
+  configure trusted remote-IP handling appropriately; arbitrary forwarded headers
+  are not trusted by the app.
+- Codes use an HMAC bound to challenge/identity/purpose; passwords use Bcrypt;
+  application keys are stored only as hashes. Sensitive request fields are filtered.
+- Password reset links expire after one hour; reset revokes existing browser
+  sessions and the reset link cannot be replayed. Application keys are separately
+  managed credentials, not browser sessions.
+- Development email uses Swoosh Local. No real email is sent with this adapter.
+
+## Routes and structure
+
+| Route | Purpose |
 | --- | --- |
-| http://localhost:4000 | Phoenix welcome page |
-| http://localhost:4000/sign-in | Request a magic link |
-| http://localhost:4000/dev/mailbox | Development email inbox |
-| http://localhost:4000/admin | Ash Admin, development only |
-| http://localhost:4000/dev/dashboard | LiveDashboard, development only |
-| http://localhost:4000/api/json/users | Authenticated user's JSON:API representation |
-| http://localhost:4000/api/json/open_api | OpenAPI schema |
-| http://localhost:4000/api/json/swaggerui | Swagger UI |
-| http://localhost:4007 | LiveDebugger, development only |
+| `/` | Landing |
+| `/sign-in`, `/register`, `/forgot-password`, `/sign-in/otp` | Authentication |
+| `/dashboard` | Verified-account overview and workspace switch |
+| `/dashboard/applications` | Application creation, scoped keys and revocation |
+| `/dashboard/settings` | Workspace identity and workspace creation |
+| `/dashboard/profile` | Display name and password-reset entry |
+| `/dashboard/admin` | Operator-only users and signup policy |
+| `/api/v2/application` | New application-key connection check |
+| `/api/json/users` | Existing personal-key, self-only JSON API |
+| `/api/json/open_api`, `/api/json/swaggerui` | Existing JSON API documentation |
+| `/admin` | Development-only Ash Admin; not the product operator UI |
+| `/dev/mailbox`, `/dev/dashboard` | Development mailbox and telemetry |
 
-## Authentication
+LiveDebugger is dev-only, starting at port 4007 and finding an available next port
+if occupied. Check startup output. Auxiliary Mix tasks can coexist with a running
+server; don't start two Phoenix servers on the same `PORT`.
 
-**Magic links:** Enter an email at `/sign-in`, open `/dev/mailbox`, follow the
-link, and confirm sign-in. New emails register automatically. Tokens are stored,
-single-use, and require an interaction so email link scanners cannot silently
-consume them. Existing users can sign in again with a fresh link.
+- `lib/app/accounts/`: Ash users, identities/tokens, OTP, shared limits and senders.
+- `lib/app/workspaces/`: tenants, memberships, applications and application keys.
+- `lib/app/platform/`, `lib/app/checks/`: operator controls and authorization.
+- `lib/app_web/controllers/`: landing, session/OTP pages, API check, auth callbacks.
+- `lib/app_web/live/`: dashboard and operator UI.
+- `lib/mix/tasks/app.operator.ex`: explicit local operator bootstrap.
+- `priv/repo/migrations/`, `priv/resource_snapshots/`: schema and Ash snapshots.
+- `agent/`: full v1 replacement roadmap and [delivery status](agent/mvp-delivery.md).
 
-Development mail stays local; tests use Swoosh's test adapter. Production is
-configured for Mailgun and requires `MAILGUN_API_KEY` / `MAILGUN_DOMAIN`.
-Set `MAIL_FROM` to a verified sender before production use.
+Users/tokens are global identities. Tenant-owned data uses attribute multitenancy.
+The application-key table permits a trusted hash lookup without a tenant so a
+presented key can resolve its tenant; normal resource policies still require an
+active owner/admin and a matching tenant. Key use revalidates the issuer's access.
+Personal scaffold keys remain separate and are not upgraded into application keys.
 
-**API keys:** Keys are separate credentials, not session JWTs. They are sent as
-`Authorization: Bearer <key>`. Only their hash is stored. The plaintext is returned
-once in resource metadata. Each key has an owner and expiry; owners can read and
-revoke only their own keys. Invalid, expired, and deleted keys fail authentication.
-
-To issue a key for an existing user in a trusted local IEx session:
-
-```elixir
-# Trusted operator lookup; normal application calls must pass actor: user.
-user = Ash.get!(App.Accounts.User, [email: "you@example.com"], authorize?: false)
-key = App.Accounts.ApiKey
-  |> Ash.Changeset.for_create(:create, %{expires_at: DateTime.add(DateTime.utc_now(), 86_400)}, actor: user)
-  |> Ash.create!()
-key.__metadata__.plaintext_api_key # copy once; don't log or commit it
-# Revoke: Ash.destroy!(key, actor: user)
-```
+## Verification
 
 ```bash
-curl -H "Authorization: Bearer $APP_API_KEY" \
-  -H 'Accept: application/vnd.api+json' \
-  http://localhost:4000/api/json/users
-```
-
-`GET /api/json/users` lists only the actor's record. `GET /api/json/users/:id`
-returns only that same record; other users are hidden. Anonymous resource reads
-return HTTP 401. Authentication actions, token records, and API key hashes are not
-exposed through JSON API. OpenAPI and Swagger are public documentation endpoints.
-Ash Admin is a local development tool and has no production route.
-
-## Structure
-
-```text
-config/                          environment, database, mail, token and vault settings
-lib/app/accounts.ex              Accounts Ash domain + JSON API routes + Admin
-lib/app/accounts/user.ex         PostgreSQL user, magic-link and API-key strategies
-lib/app/accounts/api_key.ex      hashed keys, expiry, owner policies
-lib/app/accounts/token.ex        authentication token persistence
-lib/app/accounts/user/senders/   magic-link email sender
-lib/app/vault.ex                 AES-256-GCM Cloak vault
-lib/app/repo.ex                  AshPostgres repository
-lib/app_web/router.ex            browser auth, JSON API, development tools
-lib/app_web/ash_json_api_router.ex Accounts JSON API/OpenAPI router
-lib/app_web/live_user_auth.ex    hooks for future authenticated LiveViews
-priv/repo/migrations/            PostgreSQL extensions and accounts tables
-priv/resource_snapshots/         Ash schema snapshots (commit with migrations)
-assets/                         Phoenix Tailwind and JavaScript
-compose.yaml                    dedicated local PostgreSQL
-test/                          authentication, API isolation, vault and Phoenix tests
-```
-
-The stack includes Ash, Ash Phoenix, Ash PostgreSQL, Ash Authentication,
-Ash Authentication Phoenix, Ash JSON API, Ash Admin, Ash Archival, LiveDebugger,
-Cloak and Ash Cloak. Exact resolved versions are recorded in `mix.lock`.
-
-Ash Archival and Ash Cloak are resource extensions with no global installer.
-Add `AshArchival.Resource` to future file resources to soft-delete them, then
-run `mix ash.codegen <migration_name>`. Authentication tokens and API keys are
-intentionally hard-deleted on revocation. For encrypted storage credentials,
-add `AshCloak`, configure `cloak do; vault App.Vault; attributes [:secret]; end`,
-and generate a migration. No storage credential resource exists yet.
-
-The vault is supervised and uses authenticated AES-GCM. It normalizes Cloak's
-authentication-failure return value and raises on tampered ciphertext. Development/test have a
-fixed local-only key. Production requires a base64-encoded 32-byte `CLOAK_KEY`;
-keep it private and persistent or encrypted records cannot be recovered.
-
-## Verification and schema changes
-
-```bash
-mix test
+docker compose up -d db
 mix precommit
-mix ash.codegen --check
-mix ecto.migrations
 mix assets.build
+mix ash.codegen --check
 ```
 
-After changing Ash resources, run `mix ash.codegen descriptive_change_name`,
-review the migration, then `mix ecto.migrate`. Tests automatically create and
-migrate their isolated database. Test coverage includes actual magic-link email
-and sign-in, token replay, API key expiry/revocation, cross-user isolation,
-JSON API/OpenAPI, and vault encryption/tamper detection.
+Current verified result: **32 tests passed**, including real OTP concurrency on
+two database connections, password confirmation/reset and session invalidation,
+GitHub identity collision, tenant mutation isolation, bans and key revocation,
+HTTP auth flows and LiveView application/operator forms. Assets and schema checks
+pass. Browser screenshot QA was unavailable; visual desktop/mobile review remains
+a manual acceptance step. Tests do not prove a real GitHub OAuth callback or
+production mail delivery; configure and verify those in staging.
 
-## Verified locally
+## Remaining scope
 
-- `mix setup` completed against the dedicated PostgreSQL container.
-- Both initial development migrations applied; test migrations applied automatically.
-- `mix test` and `mix precommit`: 11 tests passed; warnings-as-errors compilation passed.
-- `mix assets.build` succeeded.
-- `mix ash.codegen --check` found no pending schema changes.
-- HTTP checks returned 200 for home, sign-in, Admin, OpenAPI and LiveDebugger.
-- Initial dependency compilation emits upstream warnings on Elixir 1.20; the
-  application itself compiles without warnings.
+No file upload/download backend, S3/local file manager, storage usage stats,
+transfers, image processing, backups, browser-token SDK integration or v1 importer
+is implemented yet. No memberships can be modified through the MVP: personal
+owner workspaces are usable, while invitations, limited application grants and
+ownership transfer remain on the plan. Application renaming UI, explicit GitHub
+linking/unlinking, session manager/logout-all UI, and audit browsing are deferred.
+Do not migrate production traffic from v1 based on this MVP.
 
-## Unified installation record
+The unified original installation includes Phoenix, Ash/Ash Phoenix, Ash
+PostgreSQL, Ash Authentication/Phoenix, JSON API, Ash Admin, Ash Archival,
+LiveDebugger, Cloak and Ash Cloak. Archival/encrypted-storage resource integration
+belongs to the storage phases; the AES-GCM vault is supervised and tested now.
+Exact package versions are in `mix.lock`; no second Phoenix app was generated.
 
-Phoenix was generated **once** through Igniter New. Its single combined install
-phase was equivalent to:
+## Production settings
 
-```bash
-mix igniter.install ash,ash_phoenix,ash_postgres,ash_authentication,ash_authentication_phoenix,ash_json_api,ash_admin,ash_archival,live_debugger,cloak,ash_cloak \
-  --auth-strategy magic_link,api_key --yes
-```
+See `.env.example`. Production requires `DATABASE_URL`, `SECRET_KEY_BASE`,
+`TOKEN_SIGNING_SECRET`, a base64-encoded 32-byte `CLOAK_KEY`, `PHX_HOST`, verified
+`MAIL_FROM`, `MAILGUN_API_KEY`, and `MAILGUN_DOMAIN`. Generate signing values with
+`mix phx.gen.secret` and the encryption key with `openssl rand -base64 32`. Keep
+encryption keys persistent/private and backed up separately. Configure database
+TLS and HTTPS/reverse proxy for your deployment. Test real mail/OAuth before use.
 
-The actual generator command, run from the parent directory against a nonexistent
-`v2` directory, was:
-
-```bash
-mix archive.install hex igniter_new --force
-mix archive.install hex phx_new 1.8.16 --force
-mix igniter.new v2 --with phx.new \
-  --with-args='--app app --module App --no-install' \
-  --install ash,ash_phoenix,ash_postgres,ash_authentication,ash_authentication_phoenix,ash_json_api,ash_admin,ash_archival,live_debugger,cloak,ash_cloak \
-  --auth-strategy magic_link,api_key --yes
-```
-
-Do not rerun the generator or installer on this existing project. Use `mix setup`
-for normal setup. The installer completed its package configuration; migration
-code generation was rerun separately after correcting runtime configuration.
-
-## Production configuration
-
-Export `DATABASE_URL`, `SECRET_KEY_BASE`, `TOKEN_SIGNING_SECRET`, `CLOAK_KEY`,
-`PHX_HOST`, `MAIL_FROM`, `MAILGUN_API_KEY`, and `MAILGUN_DOMAIN`.
-Generate signing secrets with `mix phx.gen.secret`; generate a vault key with
-`openssl rand -base64 32`. `.env.example` lists settings; `.env` files are not
-automatically loaded. Use your deployment environment's secret management.
-Build assets with `MIX_ENV=prod mix assets.deploy`, migrate with
-`MIX_ENV=prod mix ecto.migrate`, and start with
-`PHX_SERVER=true MIX_ENV=prod mix phx.server` (or build a release).
-LiveDebugger is a development-only dependency; Admin/dashboard/mailbox routes
-are absent outside development. Configure database TLS for your deployment.
-
-Hex currently flags Assent 0.2.13's Apple callback advisory and Cloak 1.1.4's
-AES-CTR advisory. Apple authentication is not enabled, and the vault exclusively
-uses AES-GCM. Ash Authentication currently constrains Assent to `< 0.3.0`;
-review upstream fixes before enabling Apple auth or changing cipher modes.
-See [Assent advisory](https://osv.dev/vulnerability/EEF-CVE-2026-117656) and
+Hex reports advisories for Assent 0.2.13's Apple callback and Cloak 1.1.4's AES-CTR
+cipher. Apple auth and AES-CTR are not enabled; this app uses GitHub and AES-GCM
+and normalizes Cloak's tampered-ciphertext failure result. Ash Authentication pins
+Assent below 0.3, so upgrading it requires a compatibility review. See the
+[Assent advisory](https://osv.dev/vulnerability/EEF-CVE-2026-117656) and
 [Cloak advisory](https://osv.dev/vulnerability/EEF-CVE-2026-95105).
-
-## V1 replacement roadmap
-
-See [agent/README.md](agent/README.md) for the plan, v1 parity inventory, tenant
-architecture, GitHub/password/email OTP authentication design, dashboard/storage
-requirements, migration/release strategy, and ordered execution backlog. This is
-a planning handoff; those replacement features have not been implemented yet.

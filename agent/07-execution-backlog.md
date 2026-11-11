@@ -1,7 +1,10 @@
 # Ordered execution backlog
 
-All items are **not started**. These are reviewable units, not permission to begin
-implementation. Keep task IDs stable; attach actual commands/test reports and
+The first MVP is implemented; see [delivery status](mvp-delivery.md). P0 auth
+experiments and P1/P2/P3 have partial implementation. No full phase is declared
+complete: invitations/grants, linking/session UI and all storage/migration phases
+remain outstanding. The table defines the complete replacement, not just the MVP.
+These are reviewable units. Keep task IDs stable; attach actual commands/test reports and
 source changes when completing a task. An item cannot be closed with placeholder
 UI, mocked authorization, or an unexecuted migration.
 
