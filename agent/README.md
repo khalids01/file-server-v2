@@ -36,8 +36,8 @@ Read in this order:
 
 ## Current milestone
 
-The original scaffold is commit `855ff11`; the first landing/auth/workspace/admin
-MVP is `7fd0d39`. Follow-up security and verification work is documented in
+The original scaffold is commit `cbd5d3f`; the first landing/auth/workspace/admin
+MVP is `0b13223`. Follow-up security and verification work is documented in
 [mvp-delivery.md](mvp-delivery.md). `mix precommit` currently passes 32 tests.
 These checks cover the MVP, not v1 storage parity. Full tenant membership/grants,
 file storage, jobs, compatibility imports and production cutover remain planned.

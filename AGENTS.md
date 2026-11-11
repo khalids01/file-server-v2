@@ -371,3 +371,9 @@ Where the server handled it via:
       document = LazyHTML.from_fragment(html)
       matches = LazyHTML.filter(document, "your-complex-selector")
       IO.inspect(matches, label: "Matches")
+
+## Commit attribution
+
+- Use the configured human Git identity (`khalids01`) for all commits.
+- Never add AI/bot authors, committers, or `Co-authored-by` trailers. The repository owner is the sole contributor.
+- Do not override Git identity or append tool-generated attribution when delegating implementation.

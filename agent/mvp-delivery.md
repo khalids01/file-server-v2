@@ -22,9 +22,9 @@ context. Existing personal keys retain their separate self-only JSON API behavio
 
 ## Git and implementation ownership
 
-- `855ff11`: baseline scaffold and full replacement plan.
-- `7fd0d39`: first working landing/auth/workspace/operator MVP (23 passing tests).
-- `91710e1`: tenant mutation scope, IP throttling, auth lifecycle and concurrency verification (32 passing tests).
+- `cbd5d3f`: baseline scaffold and full replacement plan.
+- `0b13223`: first working landing/auth/workspace/operator MVP (23 passing tests).
+- `c827872`: tenant mutation scope, IP throttling, auth lifecycle and concurrency verification (32 passing tests).
 - Documentation is committed separately after the implementation checks.
 - `origin` fetch URL: `https://github.com/khalids01/file-server-v2.git`.
 - Push URL uses the user's already configured SSH identity for the same GitHub
