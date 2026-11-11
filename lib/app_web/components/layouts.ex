@@ -34,20 +34,39 @@ defmodule AppWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <div class="min-h-screen bg-background text-foreground">
+    <div
+      id="app-shell"
+      phx-hook={@section && "Sidebar"}
+      class="min-h-screen bg-background text-foreground"
+    >
       <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card/95 px-5 backdrop-blur lg:px-8">
-        <.link
-          href="/"
-          class="flex items-center gap-2.5 text-base font-semibold tracking-tight"
-          aria-label="File Server home"
-        >
-          <span class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><.icon
-            name="hero-server-stack-solid"
-            class="size-4"
-          /></span>
-          File Server
-          <.badge>v2</.badge>
-        </.link>
+        <div class="flex min-w-0 items-center gap-3">
+          <.button
+            :if={@section}
+            id="sidebar-toggle"
+            type="button"
+            variant="ghost"
+            class="size-9 p-0"
+            data-sidebar-toggle
+            aria-controls="workspace-sidebar"
+            aria-expanded="true"
+            aria-label="Toggle sidebar"
+          >
+            <.icon name="hero-bars-3" class="size-5" />
+          </.button>
+          <.link
+            href="/"
+            class="flex items-center gap-2.5 text-base font-semibold tracking-tight"
+            aria-label="File Server home"
+          >
+            <span class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><.icon
+              name="hero-server-stack-solid"
+              class="size-4"
+            /></span>
+            File Server
+            <.badge>v2</.badge>
+          </.link>
+        </div>
         <nav class="flex items-center gap-2 text-sm font-medium" aria-label="Account navigation">
           <.theme_toggle />
           <%= if @current_user do %>
@@ -59,47 +78,13 @@ defmodule AppWeb.Layouts do
           <% end %>
         </nav>
       </header>
-      <div class={[@section && "mx-auto flex max-w-[1600px] flex-col lg:flex-row"]}>
-        <aside
+      <div class={[@section && "app-workspace"]}>
+        <.sidebar
           :if={@section}
-          class="flex gap-1 overflow-x-auto border-b border-border bg-card p-3 lg:min-h-[calc(100vh-4rem)] lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-b-0 lg:p-4"
-        >
-          <p class="hidden px-3 pb-3 pt-4 text-xs font-medium text-muted-foreground lg:block">
-            Workspace
-          </p>
-          <.link
-            :for={
-              {label, path, icon} <- [
-                {"Overview", "/dashboard", "hero-squares-2x2"},
-                {"Applications", "/dashboard/applications", "hero-command-line"},
-                {"Workspace settings", "/dashboard/settings", "hero-cog-6-tooth"},
-                {"Your profile", "/dashboard/profile", "hero-user-circle"}
-              ]
-            }
-            navigate={path <> if(@tenant_id, do: "?tenant=" <> @tenant_id, else: "")}
-            class={[
-              "flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-              if(@section == label,
-                do: "bg-accent font-medium text-foreground",
-                else: "text-muted-foreground hover:bg-accent hover:text-foreground"
-              )
-            ]}
-          ><.icon name={icon} class="size-4" />{label}</.link>
-          <.link
-            :if={@current_user && @current_user.operator}
-            navigate="/dashboard/admin"
-            class={[
-              "mt-2 flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent",
-              if(@section == "Operator admin",
-                do: "bg-accent font-medium",
-                else: "text-muted-foreground"
-              )
-            ]}
-          ><.icon name="hero-shield-check" class="size-4" />Operator admin</.link>
-          <div class="mt-auto hidden rounded-lg border border-border bg-muted/50 p-4 text-xs leading-5 text-muted-foreground lg:block">
-            <strong class="mb-1 block font-medium text-foreground">Your infrastructure.</strong>Authentication and workspaces are ready. File storage is coming next.
-          </div>
-        </aside>
+          current_user={@current_user}
+          section={@section}
+          tenant_id={@tenant_id}
+        />
         <main class={[@section && "min-w-0 flex-1 p-5 sm:p-8 lg:p-10"]}>
           {render_slot(@inner_block)}
         </main>

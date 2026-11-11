@@ -100,3 +100,24 @@
   .ui-table tr { border-bottom: 1px solid var(--border); }
   .ui-table tbody tr:hover { background: var(--muted); }
 }
+
+@layer components {
+  .app-workspace { display: flex; width: 100%; }
+  .workspace-sidebar { position: fixed; top: 4rem; left: 0; bottom: 0; z-index: 40; display: flex; flex-direction: column; width: 15rem; padding: 1rem .75rem; border-right: 1px solid var(--border); background: var(--card); overflow-x: hidden; overflow-y: auto; transform: translateX(-100%); visibility: hidden; transition: transform 220ms ease, width 220ms ease, visibility 220ms; }
+  .sidebar-heading { height: 2.5rem; padding: .75rem; font-size: .75rem; font-weight: 500; color: var(--muted-foreground); }
+  .sidebar-link { display: flex; align-items: center; gap: .75rem; min-height: 2.5rem; padding: .625rem .75rem; border-radius: .375rem; color: var(--muted-foreground); font-size: .875rem; white-space: nowrap; transition: background 150ms, color 150ms; }
+  .sidebar-link:hover, .sidebar-link-active { background: var(--accent); color: var(--foreground); }
+  .sidebar-link-active { font-weight: 500; }
+  .sidebar-label { white-space: nowrap; opacity: 1; transition: opacity 150ms ease; }
+  .sidebar-footer { margin-top: auto; border: 1px solid var(--border); border-radius: .5rem; padding: 1rem; color: var(--muted-foreground); font-size: .75rem; line-height: 1.5; white-space: normal; }
+  .sidebar-backdrop { display: none; position: fixed; inset: 4rem 0 0; z-index: 35; background: #0006; }
+  [data-sidebar-open="true"] .workspace-sidebar { transform: translateX(0); visibility: visible; }
+  [data-sidebar-open="true"] .sidebar-backdrop { display: block; }
+}
+@media (min-width: 1024px) {
+  .workspace-sidebar { position: sticky; top: 4rem; bottom: auto; z-index: 20; height: calc(100dvh - 4rem); flex-shrink: 0; transform: none; visibility: visible; }
+  [data-sidebar-collapsed="true"] .workspace-sidebar { width: 4rem; padding-inline: .5rem; }
+  [data-sidebar-collapsed="true"] .sidebar-label { opacity: 0; pointer-events: none; }
+  [data-sidebar-collapsed="true"] .sidebar-footer { display: none; }
+  [data-sidebar-open="true"] .sidebar-backdrop { display: none; }
+}

@@ -52,7 +52,8 @@ agent/                          Replacement roadmap and implementation notes
 | Tenant permissions and application keys | `lib/app/workspaces/` |
 | Button or input markup | `lib/app_web/components/ui/button.ex` or `input.ex` |
 | Colors, spacing, shared component styles | `assets/css/app.css` |
-| Sidebar, navigation, theme toggle | `lib/app_web/components/layouts.ex` |
+| Collapsible workspace sidebar | `lib/app_web/components/ui/sidebar.ex` and `assets/js/sidebar.mjs` |
+| Shared layout and theme toggle | `lib/app_web/components/layouts.ex` |
 | URL or access requirement | `lib/app_web/router.ex` |
 
 ## Coming from TypeScript

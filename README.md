@@ -142,7 +142,7 @@ mix ash.codegen --check
 node --test test/js/theme_test.mjs
 ```
 
-Verified: **44 Elixir tests + 7 JavaScript tests**, warnings-as-errors app
+Verified: **46 Elixir tests + 10 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, tenant isolation, bans, key revocation and persisted
@@ -172,3 +172,7 @@ component lives in `lib/app_web/components/ui/user_menu.ex`; it shows the GitHub
 avatar or the first letter of the display name, with profile and sign-out links.
 Run `mix ecto.migrate` after pulling to add the optional `users.avatar_url` column.
 Existing GitHub users receive their avatar on their next GitHub sign-in.
+
+The workspace sidebar sits against the left edge. Use the header toggle to collapse
+it to icons on desktop (saved in local storage) or open the mobile drawer. Escape,
+the backdrop, and navigation close the mobile drawer.
