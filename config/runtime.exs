@@ -80,7 +80,7 @@ if config_env() == :dev do
         ~r"priv/gettext/.*\.po$"E,
         # Router, Controllers, LiveViews and LiveComponents
         ~r"lib/app_web/router\.ex$"E,
-        ~r"lib/app_web/(controllers|live|components)/.*\.(ex|heex)$"E
+        ~r"lib/app_web/(features|components|api|errors)/.*\.(ex|heex)$"E
       ]
     ]
 end

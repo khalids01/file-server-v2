@@ -1,0 +1,80 @@
+# Finding your way around v2
+
+Most page UI lives in `lib/app_web/features/`. Backend rules and data live in
+`lib/app/`. Shared UI lives in `lib/app_web/components/`.
+
+```text
+lib/
+  app/                          Backend: resources, permissions, business rules
+    accounts/                   Users, GitHub identity, email OTP, sessions
+    workspaces/                 Tenants, memberships, applications, integration keys
+    mailer.ex                   Swoosh mail delivery
+    mailer_config.ex            SMTP configuration
+  app_web/                      Browser and HTTP layer
+    features/
+      landing/                  Homepage controller and page_html/home.html.heex
+      auth/                     Sign-in, OTP pages, OAuth callbacks, route guards
+      dashboard/                Dashboard LiveView and its adjacent HTML template
+      admin/                    Operator LiveView and its adjacent HTML template
+    components/
+      ui/                       Button, input, card, badge, table, icon, etc.
+      layouts.ex                Shared page shells and theme switcher
+      layouts/root.html.heex    Root HTML document
+    api/                        JSON API router and integration API controller
+    errors/                     HTML and JSON error responses
+    router.ex                   URL → controller/LiveView mapping, route protection
+    endpoint.ex                 HTTP server, sockets, sessions
+  app_web.ex                    Shared imports available to pages and templates
+assets/
+  css/app.css                   Theme tokens, component styles, Tailwind entry point
+  js/theme.mjs                  Light/dark/system preference behavior
+  js/app.js                     Browser entry point and LiveView connection
+config/                         Build-time and runtime configuration
+priv/repo/migrations/           Database migrations
+priv/resource_snapshots/        Ash schema snapshots used to generate migrations
+test/                           Backend, browser-flow, and JavaScript tests
+agent/                          Replacement roadmap and implementation notes
+```
+
+## Where to edit
+
+| What you want to change | Start here |
+| --- | --- |
+| Landing page content | `lib/app_web/features/landing/page_html/home.html.heex` |
+| Sign-in appearance | `lib/app_web/features/auth/session_html/new.html.heex` |
+| Email code request or verification appearance | `lib/app_web/features/auth/otp_html/` |
+| Email code validation or GitHub account linking | `lib/app/accounts/` |
+| SMTP connection settings | `lib/app/mailer_config.ex` and `config/runtime.exs` |
+| Dashboard pages and interactions | `lib/app_web/features/dashboard/dashboard_live.ex` and `.html.heex` |
+| Admin page and interactions | `lib/app_web/features/admin/operator_live.ex` and `.html.heex` |
+| Tenant permissions and application keys | `lib/app/workspaces/` |
+| Button or input markup | `lib/app_web/components/ui/button.ex` or `input.ex` |
+| Colors, spacing, shared component styles | `assets/css/app.css` |
+| Sidebar, navigation, theme toggle | `lib/app_web/components/layouts.ex` |
+| URL or access requirement | `lib/app_web/router.ex` |
+
+## Coming from TypeScript
+
+A `.html.heex` file is a page/component template, similar to JSX. A controller
+handles HTTP requests and chooses a template. A LiveView `.ex` file manages page
+state and events; its adjacent `.html.heex` renders that state. Shared function
+components use HEEx inside `.ex` files and are automatically imported through
+`lib/app_web.ex`, so pages can use `<.button>` or `<.input>`.
+
+An Ash resource in `lib/app/` combines schema, actions, validation, and permissions.
+Keep those rules there even when their UI belongs to a feature folder.
+
+Folder names organize files; Elixir modules have explicit names. For example,
+`features/auth/otp_controller.ex` still declares `AppWeb.OtpController`. Keeping
+these names preserves existing routes and configuration. HTML modules keep their
+`*_html/` templates beside them, and LiveViews keep their adjacent templates.
+
+## Running and checking
+
+From `v2/`, load your local environment with `set -a; source .env; set +a`, then run
+`mix phx.server`. See the root README for database setup and required environment
+variables. The `.env` file is not loaded automatically.
+
+Checks: `mix precommit`, `mix assets.build`, `mix ash.codegen --check`, and
+`node --test test/js/theme_test.mjs`. Use your configured development/test database;
+`docker compose up -d db` supplies the repository's local database on port 5434.

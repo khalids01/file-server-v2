@@ -150,7 +150,10 @@ theme preference. Browser host was unavailable, so screenshot/mobile visual QA i
 not claimed. A real Gmail delivery and GitHub OAuth callback require configured
 credentials and manual/staging verification; no real mail was sent during tests.
 
-Relevant files: `lib/app/accounts/`, `lib/app/mailer_config.ex`,
+See [the project structure guide](docs/project-structure.md) for feature folders,
+shared components, and where to edit each screen.
+
+Relevant files: `lib/app_web/features/`, `lib/app/accounts/`, `lib/app/mailer_config.ex`,
 `lib/app_web/components/`, `assets/css/app.css`, `assets/js/theme.mjs`.
 The full replacement roadmap is under [agent/](agent/README.md). Current behavior
 supersedes the earlier five-method authentication plan. V1 storage/migration,

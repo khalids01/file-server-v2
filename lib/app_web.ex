@@ -85,7 +85,17 @@ defmodule AppWeb do
       # HTML escaping functionality
       import Phoenix.HTML
       # Core UI components
-      import AppWeb.CoreComponents
+      import AppWeb.UI.Flash
+      import AppWeb.UI.Button
+      import AppWeb.UI.Input
+      import AppWeb.UI.Card
+      import AppWeb.UI.Badge
+      import AppWeb.UI.Header
+      import AppWeb.UI.Table
+      import AppWeb.UI.List
+      import AppWeb.UI.Icon
+      import AppWeb.UI.Transitions
+      import AppWeb.UI.FormErrors
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
