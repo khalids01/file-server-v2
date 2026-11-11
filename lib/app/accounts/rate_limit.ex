@@ -3,6 +3,12 @@ defmodule App.Accounts.RateLimit do
   def allow_password?(email) do
     identity = email |> to_string() |> String.trim() |> String.downcase()
 
+    allow?("password", identity, 10)
+  end
+
+  def allow_auth_ip?(ip), do: allow?("http", ip, 60)
+
+  defp allow?(kind, identity, limit) do
     digest =
       :crypto.mac(:hmac, :sha256, Application.fetch_env!(:app, :token_signing_secret), identity)
       |> Base.encode16(case: :lower)
@@ -19,9 +25,9 @@ defmodule App.Accounts.RateLimit do
             THEN now() ELSE platform_settings.updated_at END
         RETURNING value::integer
         """,
-        ["rate:password:" <> digest]
+        ["rate:" <> kind <> ":" <> digest]
       )
 
-    count <= 10
+    count <= limit
   end
 end

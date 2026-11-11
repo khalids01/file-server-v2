@@ -23,7 +23,7 @@ defmodule AppWeb.AuthController do
       |> redirect(to: return_to)
     else
       conn
-      |> put_flash(:info, "Check your email to confirm your account before signing in.")
+      |> put_flash(:info, "If an eligible account exists, check your email for the next step.")
       |> redirect(to: ~p"/sign-in")
     end
   end

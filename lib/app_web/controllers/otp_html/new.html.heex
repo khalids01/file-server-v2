@@ -7,7 +7,14 @@
     We'll email you a six-digit code. No password to remember.
   </p>
   <.form for={to_form(%{})} id="otp-request" action="/sign-in/otp" class="space-y-5">
-    <.input name="email" type="email" label="Email address" autocomplete="email" required />
+    <.input
+      id="otp-email"
+      name="email"
+      type="email"
+      label="Email address"
+      autocomplete="email"
+      required
+    />
     <.button class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700">Send code</.button>
   </.form>
   <.link href="/sign-in" class="mt-6 block text-center text-sm text-indigo-600">Other sign-in options</.link>

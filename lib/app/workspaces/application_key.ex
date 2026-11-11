@@ -7,6 +7,7 @@ defmodule App.Workspaces.ApplicationKey do
 
   postgres do
     table "workspace_api_keys"
+    migration_defaults scopes: "nil", expires_at: "nil"
     repo App.Repo
   end
 

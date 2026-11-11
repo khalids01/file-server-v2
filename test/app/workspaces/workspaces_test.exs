@@ -27,6 +27,7 @@ defmodule App.WorkspacesTest do
     app =
       Ash.create!(Application, %{name: "Project", slug: "project"}, actor: owner, tenant: a.id)
 
+    assert {:error, _} = Ash.update(app, %{name: "Tenant laundering"}, actor: owner, tenant: b.id)
     assert {:error, _} = Ash.read(Application, actor: owner)
     assert Ash.read!(Application, actor: owner, tenant: b.id) == []
 

@@ -63,9 +63,5 @@ defmodule AppWeb.OtpController do
     end
   end
 
-  defp client_ip(conn) do
-    conn.remote_ip
-    |> Tuple.to_list()
-    |> Enum.join(".")
-  end
+  defp client_ip(conn), do: to_string(:inet.ntoa(conn.remote_ip))
 end

@@ -11,9 +11,24 @@
     action="/auth/user/password/register"
     class="space-y-4"
   >
-    <.input name="user[name]" type="text" label="Your name" autocomplete="name" maxlength="80" />
-    <.input name="user[email]" type="email" label="Email address" autocomplete="email" required />
     <.input
+      id="register-name"
+      name="user[name]"
+      type="text"
+      label="Your name"
+      autocomplete="name"
+      maxlength="80"
+    />
+    <.input
+      id="register-email"
+      name="user[email]"
+      type="email"
+      label="Email address"
+      autocomplete="email"
+      required
+    />
+    <.input
+      id="register-password"
       name="user[password]"
       type="password"
       label="Password (at least 8 characters)"
@@ -22,6 +37,7 @@
       required
     />
     <.input
+      id="register-password-confirmation"
       name="user[password_confirmation]"
       type="password"
       label="Confirm password"

@@ -9,7 +9,14 @@
     action="/auth/user/password/reset_request"
     class="space-y-4"
   >
-    <.input name="user[email]" type="email" label="Email address" autocomplete="email" required />
+    <.input
+      id="reset-email"
+      name="user[email]"
+      type="email"
+      label="Email address"
+      autocomplete="email"
+      required
+    />
     <.button class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700">Send reset link</.button>
   </.form>
   <.link href="/sign-in" class="mt-6 block text-center text-sm text-indigo-600">Back to sign in</.link>

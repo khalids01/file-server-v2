@@ -12,6 +12,24 @@ defmodule AppWeb.Router do
     plug :put_secure_browser_headers
     plug :load_from_session
     plug :configured_github
+    plug :throttle_auth
+  end
+
+  defp throttle_auth(conn, _opts) do
+    auth_post? =
+      conn.method == "POST" and
+        (List.first(conn.path_info) == "auth" or
+           Enum.take(conn.path_info, 2) == ["sign-in", "otp"])
+
+    if auth_post? and
+         not App.Accounts.RateLimit.allow_auth_ip?(to_string(:inet.ntoa(conn.remote_ip))) do
+      conn
+      |> put_resp_header("retry-after", "60")
+      |> send_resp(429, "Too many authentication requests. Please try again later.")
+      |> halt()
+    else
+      conn
+    end
   end
 
   defp configured_github(conn, _opts) do

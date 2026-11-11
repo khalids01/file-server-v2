@@ -10,8 +10,16 @@
     action="/auth/user/password/sign_in"
     class="space-y-4"
   >
-    <.input name="user[email]" type="email" label="Email address" autocomplete="email" required />
     <.input
+      id="sign-in-email"
+      name="user[email]"
+      type="email"
+      label="Email address"
+      autocomplete="email"
+      required
+    />
+    <.input
+      id="sign-in-password"
       name="user[password]"
       type="password"
       label="Password"
@@ -50,7 +58,13 @@
       action="/auth/user/magic_link/request"
       class="mt-4 space-y-3"
     >
-      <.input name="user[email]" type="email" label="Email address" required />
+      <.input
+        id="magic-link-email"
+        name="user[email]"
+        type="email"
+        label="Email address"
+        required
+      />
       <.button class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Email me a sign-in link</.button>
     </.form>
   </details>
