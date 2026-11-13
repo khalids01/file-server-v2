@@ -6,6 +6,8 @@ defmodule AppWeb.DashboardLive do
   on_mount {AppWeb.LiveUserAuth, :live_user_required}
 
   def mount(_, _, socket) do
+    if connected?(socket), do: Process.send_after(self(), :refresh_file_processing, 3_000)
+
     {:ok,
      assign(socket,
        plaintext_key: nil,
@@ -15,6 +17,7 @@ defmodule AppWeb.DashboardLive do
        editing_file: nil,
        file_tags_input: "",
        files: [],
+       storage_usage: nil,
        file_search: "",
        file_sort: "newest",
        file_page: 1,
@@ -78,6 +81,23 @@ defmodule AppWeb.DashboardLive do
       end
     else
       {:noreply, socket}
+    end
+  end
+
+  def handle_info(:refresh_file_processing, socket) do
+    Process.send_after(self(), :refresh_file_processing, 3_000)
+
+    if socket.assigns.selected_app && socket.assigns.tab == "files" do
+      {:noreply, load_storage(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("retry_image", %{"id" => id}, socket) do
+    case App.Storage.retry_processing(socket.assigns.current_user, id) do
+      {:ok, _} -> {:noreply, load_storage(socket)}
+      _ -> {:noreply, put_flash(socket, :error, "Unable to retry this image.")}
     end
   end
 
@@ -216,14 +236,24 @@ defmodule AppWeb.DashboardLive do
     failed? = Enum.any?(results, fn result -> not match?({:ok, _}, result) end)
 
     socket =
-      if failed?,
-        do:
+      cond do
+        Enum.any?(results, &(&1 == {:error, :quota_exceeded})) ->
+          put_flash(
+            socket,
+            :error,
+            "Account storage quota reached. Delete files or contact the administrator for more space."
+          )
+
+        failed? ->
           put_flash(
             socket,
             :error,
             "Some files could not be stored. Check the connection and select those files again."
-          ),
-        else: put_flash(socket, :info, "Files uploaded")
+          )
+
+        true ->
+          put_flash(socket, :info, "Files uploaded")
+      end
 
     {:noreply, socket |> load_storage(sync_url: true) |> load_apps()}
   end
@@ -441,6 +471,7 @@ defmodule AppWeb.DashboardLive do
           socket
           |> assign(
             files: result.files,
+            storage_usage: App.Storage.Quota.status_for_user(actor.id),
             file_total: result.total,
             file_page: result.page,
             file_pages: result.pages,

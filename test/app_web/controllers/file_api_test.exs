@@ -1,5 +1,6 @@
 defmodule AppWeb.FileApiTest do
   use AppWeb.ConnCase, async: false
+  require Phoenix.LiveViewTest
   import App.AuthHelpers
   alias App.Applications
   alias App.Storage
@@ -452,5 +453,60 @@ defmodule AppWeb.FileApiTest do
       )
 
     assert json_response(oversized, 413)["error"]["code"] == "FILE_TOO_LARGE"
+  end
+
+  test "image preview routes enforce key scopes, application and session ownership", ctx do
+    source = Path.join(System.tmp_dir!(), "api-image-#{Ecto.UUID.generate()}.png")
+    on_exit(fn -> File.rm(source) end)
+    {:ok, image} = Image.new(40, 20, color: :green)
+    {:ok, _} = Image.write(image, source)
+    {:ok, file} = Storage.upload(ctx.owner, ctx.app.id, source, "preview.png", "image/png")
+    assert :ok = Storage.process_image(file.id)
+    url = "/api/v2/files/#{file.id}/variants/thumbnail"
+    preview = authorized(ctx.token) |> get(url)
+    assert response(preview, 200) =~ "RIFF"
+    assert get_resp_header(preview, "content-type") == ["image/webp"]
+    assert get_resp_header(preview, "cache-control") == ["private, no-store"]
+    assert get_resp_header(preview, "content-disposition") |> hd() =~ "inline"
+    metadata = authorized(ctx.token) |> get("/api/v2/files/#{file.id}") |> json_response(200)
+    assert metadata["data"]["processingState"] == "ready"
+    assert length(metadata["data"]["variants"]) == 3
+
+    other =
+      Ash.create!(Applications.Application, %{name: "Other", slug: "other"}, actor: ctx.owner)
+
+    {_, wrong_app} = Applications.issue_key!(ctx.owner, other.id, "Wrong app", ["files:read"])
+    authorized(wrong_app) |> get(url) |> response(404)
+
+    {_, write_only} =
+      Applications.issue_key!(ctx.owner, ctx.app.id, "Write only", ["files:write"])
+
+    authorized(write_only) |> get(url) |> response(403)
+    build_conn() |> get(url) |> response(401)
+    browser_url = "/files/#{file.id}/variants/thumbnail"
+
+    browser =
+      build_conn()
+      |> init_test_session(%{})
+      |> AshAuthentication.Phoenix.Plug.store_in_session(ctx.owner)
+
+    assert get(browser, browser_url) |> response(200) =~ "RIFF"
+    outsider = user("preview-outside@example.com")
+
+    build_conn()
+    |> init_test_session(%{})
+    |> AshAuthentication.Phoenix.Plug.store_in_session(outsider)
+    |> get(browser_url)
+    |> response(404)
+
+    {:ok, view, _} =
+      Phoenix.LiveViewTest.live(browser, "/dashboard/applications/#{ctx.app.id}?tab=files")
+
+    assert Phoenix.LiveViewTest.has_element?(view, "#account-storage-usage")
+
+    assert Phoenix.LiveViewTest.has_element?(
+             view,
+             "img[src='/files/#{file.id}/variants/thumbnail']"
+           )
   end
 end

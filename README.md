@@ -175,7 +175,7 @@ mix ash.codegen --check
 node --test test/js/*_test.mjs
 ```
 
-Verified: **91 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
+Verified: **104 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, application ownership isolation, bans, key revocation and persisted
@@ -198,11 +198,9 @@ The full replacement roadmap is under [agent/](agent/README.md). Current behavio
 supersedes the earlier five-method authentication plan. Local/S3 browser storage is
 implemented, as are scoped `/api/v2/files` routes. The dashboard file browser supports
 filename search, sortable views and 25-per-page pagination persisted in the URL.
-V1 SDK compatibility, imports,
-transforms, transfers and backups remain deferred. `/api/v2/application` reports
+V1 SDK compatibility, imports, public image delivery/CDN, transfers and backups remain deferred. `/api/v2/application` reports
 `storage_ready: true`, `api_version: "v2"` and `sdk_v1_compatible: false`.
-Interrupted writes can leave orphan objects; durable reconciliation and quotas
-remain future work.
+Account-wide quotas, durable recovery and private image variants are implemented. See [storage reliability and images](docs/storage-reliability-images.md) for runtime requirements, limits and migration details.
 
 Production additionally needs DATABASE_URL, SECRET_KEY_BASE, TOKEN_SIGNING_SECRET,
 PHX_HOST, SMTP credentials and a persistent encryption key. Configure HTTPS/proxy
@@ -244,3 +242,5 @@ File tags are available in the browser and v2 API: tag badges, a shared edit dia
 and AND filters preserved in the URL. Matching and deduplication ignore case,
 preserving the first spelling for display. See [the API guide](docs/file-api.md).
 Run `mix ecto.migrate` after pulling to add empty tags to existing files.
+
+Image previews require Python 3 and Elixir/Erlang on the runtime PATH. After pulling, run `mix deps.get` and `mix ecto.migrate` before starting Phoenix. [Quota and image guide](docs/storage-reliability-images.md).

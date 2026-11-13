@@ -90,6 +90,7 @@ defmodule AppWeb.Router do
     pipe_through :application_api
     get "/files", FileApiController, :index
     post "/files", FileApiController, :create
+    get "/files/:id/variants/:name", FileApiController, :variant
     get "/files/:id/content", FileApiController, :content
     get "/files/:id", FileApiController, :show
     patch "/files/:id", FileApiController, :update
@@ -124,6 +125,7 @@ defmodule AppWeb.Router do
 
     get "/", PageController, :home
 
+    get "/files/:id/variants/:name", FileController, :variant
     get "/files/:id/download", FileController, :download
 
     get "/sign-in/otp", OtpController, :new

@@ -26,6 +26,7 @@ defmodule App.Storage.Local do
 
     case File.lstat(root) do
       {:ok, %{type: :directory}} -> if create?, do: File.chmod(root, 0o700), else: :ok
+      {:error, :enoent} -> {:error, :enoent}
       _ -> {:error, :unavailable}
     end
   end
@@ -40,6 +41,9 @@ defmodule App.Storage.Local do
       {:ok, %{type: :directory}} ->
         with :ok <- if(create?, do: File.chmod(next, 0o700), else: :ok),
              do: directories(next, rest, create?)
+
+      {:error, :enoent} ->
+        {:error, :enoent}
 
       _ ->
         {:error, :unavailable}

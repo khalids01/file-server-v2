@@ -183,6 +183,14 @@
           >Upload files</.button>
         </.form>
       </.card>
+      <.card :if={@storage_usage} class="p-5" id="account-storage-usage">
+        <p class="text-sm font-medium">Account storage</p>
+        <p class="mt-1 text-xs text-muted-foreground">
+          {format_bytes(@storage_usage.used_bytes)} used · {format_bytes(
+            @storage_usage.reserved_bytes
+          )} reserved · {format_bytes(@storage_usage.quota_bytes)} total across all applications
+        </p>
+      </.card>
       <.card class="p-7">
         <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-lg font-semibold">Files</h2><span class="text-xs text-muted-foreground">
@@ -248,18 +256,42 @@
             id={dom_id}
             class="flex flex-wrap items-center justify-between gap-3 py-4"
           >
-            <div class="min-w-0">
-              <p class="break-all text-sm font-medium">{file.filename}</p>
-              <p class="mt-1 text-xs text-muted-foreground">
-                {format_bytes(file.size)} · {storage_label(@connections, file.connection_id)} · {Calendar.strftime(
-                  file.created_at,
-                  "%d %b %Y"
-                )}
-              </p>
-              <div :if={file.tags != []} class="mt-2 flex flex-wrap gap-1">
-                <.badge :for={tag <- file.tags} class="max-w-full break-all whitespace-normal">
-                  {tag}
-                </.badge>
+            <div class="flex min-w-0 items-center gap-3">
+              <img
+                :if={Enum.any?(file.variants, &(&1.name == "thumbnail" and &1.status == "ready"))}
+                src={~p"/files/#{file.id}/variants/thumbnail"}
+                alt={file.filename}
+                loading="lazy"
+                class="h-12 w-12 rounded-md border border-border object-cover"
+              />
+              <div class="min-w-0">
+                <p class="break-all text-sm font-medium">{file.filename}</p>
+                <p
+                  :if={file.processing_state != "not_applicable"}
+                  id={"processing-#{file.id}"}
+                  class="mt-1 text-xs text-muted-foreground"
+                >
+                  Image: {file.processing_state}{if file.processing_error,
+                    do: " · " <> file.processing_error}
+                </p>
+                <.button
+                  :if={file.processing_state == "failed"}
+                  type="button"
+                  variant="ghost"
+                  phx-click="retry_image"
+                  phx-value-id={file.id}
+                >Retry preview</.button>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  {format_bytes(file.size)} · {storage_label(@connections, file.connection_id)} · {Calendar.strftime(
+                    file.created_at,
+                    "%d %b %Y"
+                  )}
+                </p>
+                <div :if={file.tags != []} class="mt-2 flex flex-wrap gap-1">
+                  <.badge :for={tag <- file.tags} class="max-w-full break-all whitespace-normal">
+                    {tag}
+                  </.badge>
+                </div>
               </div>
             </div>
             <div class="flex flex-wrap gap-2">

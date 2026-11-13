@@ -83,6 +83,16 @@ config :app,
   ash_domains: [App.Accounts, App.Platform, App.Applications, App.Storage],
   ash_authentication: [return_error_on_invalid_magic_link_token?: true]
 
+# Configure Oban (jobs run in manual/test modes where configured; queues bounded)
+config :app, Oban,
+  repo: App.Repo,
+  queues: [image_processing: 2, storage_cleanup: 2],
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Cron,
+     crontab: [{"*/5 * * * *", App.Storage.Workers.ReconcileWorker, queue: :storage_cleanup}]}
+  ]
+
 # Configure the endpoint
 config :app, AppWeb.Endpoint,
   url: [host: "localhost"],

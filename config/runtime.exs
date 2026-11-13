@@ -188,6 +188,26 @@ config :app,
        {n, ""} when n in 1..1024 -> n * 1024 * 1024
        _ -> raise "MAX_FILE_SIZE_MB must be an integer from 1 to 1024"
      end),
+  storage_quota_bytes:
+    (case Integer.parse(System.get_env("STORAGE_QUOTA_GB", "5")) do
+       {n, ""} when n in 1..1024 -> n * 1024 * 1024 * 1024
+       _ -> raise "STORAGE_QUOTA_GB must be an integer from 1 to 1024"
+     end),
+  image_processing_timeout_ms:
+    (case Integer.parse(System.get_env("IMAGE_PROCESSING_TIMEOUT_MS", "10000")) do
+       {n, ""} when n >= 1_000 and n <= 120_000 -> n
+       _ -> 10_000
+     end),
+  image_max_input_pixels:
+    (case Integer.parse(System.get_env("IMAGE_MAX_INPUT_PIXELS", "40000000")) do
+       {n, ""} when n >= 1_000_000 and n <= 200_000_000 -> n
+       _ -> 40_000_000
+     end),
+  image_max_output_bytes:
+    (case Integer.parse(System.get_env("IMAGE_MAX_OUTPUT_BYTES", "5242880")) do
+       {n, ""} when n >= 102_400 and n <= 52_428_800 -> n
+       _ -> 5 * 1024 * 1024
+     end),
   s3_allowed_hosts:
     System.get_env("S3_ALLOWED_HOSTS", "")
     |> String.split(",", trim: true)

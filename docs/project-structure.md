@@ -89,3 +89,5 @@ variables. The `.env` file is not loaded automatically.
 Checks: `mix precommit`, `mix assets.build`, `mix ash.codegen --check`, and
 `node --test test/js/*_test.mjs`. Use your configured development/test database;
 `docker compose up -d db` supplies the repository's local database on port 5434.
+
+Storage quotas and native image workers are described in [storage reliability and images](storage-reliability-images.md), including a code map and deployment requirements.

@@ -14,7 +14,10 @@ defmodule AppWeb.FileApiController do
          {:ok, search} <- parse_search(params["search"]),
          {:ok, tags} <- parse_filter_tags(params) do
       auth = conn.assigns.application_auth
-      query = StoredFile |> Ash.Query.filter(application_id == ^auth.application.id)
+
+      query =
+        StoredFile
+        |> Ash.Query.filter(application_id == ^auth.application.id and status == "ready")
 
       query =
         if search == "", do: query, else: Ash.Query.filter(query, contains(filename, ^search))
@@ -39,6 +42,7 @@ defmodule AppWeb.FileApiController do
         |> Ash.Query.sort(created_at: :desc, id: :desc)
         |> Ash.Query.offset((page - 1) * limit)
         |> Ash.Query.limit(limit)
+        |> Ash.Query.load(:variants)
         |> Ash.read!(actor: auth.user)
 
       json(conn, %{
@@ -113,6 +117,17 @@ defmodule AppWeb.FileApiController do
         :ok ->
           json(conn, %{data: %{id: file.id, deleted: true}})
 
+        {:error, :not_found} ->
+          not_found(conn)
+
+        {:error, :delete_pending} ->
+          ApiError.send(
+            conn,
+            503,
+            "DELETE_PENDING",
+            "File deletion is pending. Storage cleanup will be retried."
+          )
+
         _ ->
           ApiError.send(
             conn,
@@ -120,6 +135,27 @@ defmodule AppWeb.FileApiController do
             "STORAGE_UNAVAILABLE",
             "Unable to delete this file. Please try again later."
           )
+      end
+    else
+      _ -> not_found(conn)
+    end
+  end
+
+  def variant(conn, %{"id" => id, "name" => name}) do
+    with {:ok, file} <- scoped_file(conn, id),
+         {:ok, download} <-
+           Storage.download_variant(conn.assigns.application_auth.user, file.id, name) do
+      try do
+        conn
+        |> put_resp_header("cache-control", "private, no-store")
+        |> put_resp_header("x-content-type-options", "nosniff")
+        |> send_download({:file, download.path},
+          filename: "preview",
+          content_type: download.content_type,
+          disposition: :inline
+        )
+      after
+        if download.temporary?, do: File.rm(download.path)
       end
     else
       _ -> not_found(conn)
@@ -175,6 +211,14 @@ defmodule AppWeb.FileApiController do
             {:error, {:invalid_tags, message}} ->
               ApiError.send(conn, 400, "INVALID_TAGS", message)
 
+            {:error, :quota_exceeded} ->
+              ApiError.send(
+                conn,
+                413,
+                "QUOTA_EXCEEDED",
+                "Account storage quota exceeded."
+              )
+
             _ ->
               ApiError.send(
                 conn,
@@ -193,7 +237,7 @@ defmodule AppWeb.FileApiController do
   defp scoped_file(conn, id) do
     auth = conn.assigns.application_auth
 
-    case Ash.get(StoredFile, id, actor: auth.user) do
+    case Ash.get(StoredFile, id, actor: auth.user, load: [:variants]) do
       {:ok, %StoredFile{application_id: app_id} = file} when app_id == auth.application.id ->
         {:ok, file}
 
@@ -233,10 +277,28 @@ defmodule AppWeb.FileApiController do
       filename: file.filename,
       contentType: file.content_type,
       sizeBytes: file.size,
+      processingState: file.processing_state,
+      processingError: file.processing_error,
+      variants: serialize_variants(file),
       tags: file.tags || [],
       createdAt: DateTime.to_iso8601(file.created_at),
       urls: %{content: "/api/v2/files/#{file.id}/content"}
     }
+
+  defp serialize_variants(file) do
+    variants = if is_list(file.variants), do: file.variants, else: []
+
+    for variant <- variants, variant.status == "ready" do
+      %{
+        name: variant.name,
+        width: variant.width,
+        height: variant.height,
+        contentType: variant.content_type,
+        sizeBytes: variant.size,
+        url: "/api/v2/files/#{file.id}/variants/#{variant.name}"
+      }
+    end
+  end
 
   defp integer(nil, default, _), do: {:ok, default}
 

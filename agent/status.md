@@ -1,6 +1,6 @@
-# File browser milestone status
+# Storage and image milestone status
 
-Completed (2026-11-13):
+Completed (2026-11-14):
 
 - Auth: GitHub and email one-time-code sign-in, no passwords, ban rechecks,
   operator admin dashboard.
@@ -28,16 +28,15 @@ Completed (2026-11-13):
   dialog (one-tag-per-line textarea), and tag filtering preserving search/sort/page.
   No v1 SDK compatibility claims.
 
+- Reliability/images: account-wide quota reservations, tracked pending writes and durable Oban cleanup/reconciliation; isolated Image/Vix native previews with orientation, metadata stripping and no upscale; private session and scoped API variants, dashboard previews/status/retry and account usage. See [the guide](../docs/storage-reliability-images.md) for deployment and resource limits.
+
 Remaining:
 
 - v1 SDK compatibility (current API is v2; `sdk_v1_compatible: false`).
-- Image transforms and previews.
 - Imports from v1 or remote buckets.
-- Durable reconciliation of interrupted writes (orphan objects possible).
-- Storage quotas.
 - Backups and transfers.
 - Production verification (HTTPS, DATABASE_URL, secrets, persistent vault key,
   real SMTP/GitHub credentials, no real buckets in automated tests).
 
-Verification: 91 Elixir tests, 13 JavaScript tests, asset build and Ash schema checks.
+Verification: 104 Elixir tests, 13 JavaScript tests, asset build and Ash schema checks.
 Real-bucket and browser visual checks remain unverified.

@@ -7,18 +7,20 @@ defmodule App.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      AppWeb.Telemetry,
-      App.Repo,
-      App.Vault,
-      {DNSCluster, query: Application.get_env(:app, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: App.PubSub},
-      # Start a worker by calling: App.Worker.start_link(arg)
-      # {App.Worker, arg},
-      # Start to serve requests, typically the last entry
-      AppWeb.Endpoint,
-      {AshAuthentication.Supervisor, [otp_app: :app]}
-    ]
+    children =
+      [
+        AppWeb.Telemetry,
+        App.Repo,
+        App.Vault,
+        {DNSCluster, query: Application.get_env(:app, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: App.PubSub},
+        {Oban, Application.fetch_env!(:app, Oban)},
+        # Start a worker by calling: App.Worker.start_link(arg)
+        # {App.Worker, arg},
+        # Start to serve requests, typically the last entry
+        AppWeb.Endpoint,
+        {AshAuthentication.Supervisor, [otp_app: :app]}
+      ]
 
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options
