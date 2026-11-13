@@ -28,6 +28,7 @@ defmodule AppWeb.ApplicationAuth do
             scope =
               case conn.method do
                 "POST" -> "files:write"
+                "PATCH" -> "files:write"
                 "DELETE" -> "files:delete"
                 _ -> "files:read"
               end

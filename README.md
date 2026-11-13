@@ -175,7 +175,7 @@ mix ash.codegen --check
 node --test test/js/*_test.mjs
 ```
 
-Verified: **82 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
+Verified: **91 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, application ownership isolation, bans, key revocation and persisted
@@ -239,3 +239,8 @@ handle focus and Escape. The header places the logo before the sidebar toggle.
 See [the v2 file API guide](docs/file-api.md) for curl examples, permissions, limits,
 response formats and differences from the v1 SDK. API credentials are checked
 before upload parsing; requests are limited to 120/minute/key and 300/minute/IP.
+
+File tags are available in the browser and v2 API: tag badges, a shared edit dialog,
+and AND filters preserved in the URL. Matching and deduplication ignore case,
+preserving the first spelling for display. See [the API guide](docs/file-api.md).
+Run `mix ecto.migrate` after pulling to add empty tags to existing files.

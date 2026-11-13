@@ -14,7 +14,9 @@ defmodule App.Storage.FilesPageTest do
     %{owner: owner, app: app}
   end
 
-  defp create_file(owner, app, filename, size) do
+  defp create_file(owner, app, filename, size, opts \\ []) do
+    tags = Keyword.get(opts, :tags, [])
+
     Ash.create!(
       App.Storage.StoredFile,
       %{
@@ -22,7 +24,8 @@ defmodule App.Storage.FilesPageTest do
         size: size,
         content_type: "text/plain",
         object_key: "#{owner.id}/#{app.id}/#{Ecto.UUID.generate()}",
-        application_id: app.id
+        application_id: app.id,
+        tags: tags
       },
       actor: owner,
       authorize?: false
@@ -134,6 +137,25 @@ defmodule App.Storage.FilesPageTest do
     assert length(clamped.files) == 10
   end
 
+  test "AND tag filters require all tags and reject malformed tag filters", %{
+    owner: owner,
+    app: app
+  } do
+    create_file(owner, app, "a.txt", 10, tags: ["alpha", "beta"])
+    create_file(owner, app, "b.txt", 10, tags: ["alpha"])
+    create_file(owner, app, "c.txt", 10, tags: ["beta", "gamma"])
+
+    result = Storage.files_page(owner, app.id, tags: ["alpha", "beta"])
+    assert Enum.map(result.files, & &1.filename) == ["a.txt"]
+    assert result.tags == ["alpha", "beta"]
+
+    assert Storage.files_page(owner, app.id, tags: ["alpha"]).total == 2
+    assert Storage.files_page(owner, app.id, tags: ["alpha", "gamma"]).total == 0
+    assert {:error, :invalid_tags} = Storage.files_page(owner, app.id, tags: "alpha")
+    assert {:error, :invalid_tags} = Storage.files_page(owner, app.id, tags: [""])
+    assert {:error, :invalid_tags} = Storage.files_page(owner, app.id, tags: ["ok", 1])
+  end
+
   test "same-owner cross-application isolation", %{owner: owner, app: app} do
     other_app =
       Ash.create!(App.Applications.Application, %{name: "Other app", slug: "other-app"},
@@ -161,7 +183,9 @@ defmodule App.Storage.FilesPageTest do
     other_app =
       Ash.create!(
         App.Applications.Application,
-        %{name: "Other owner app", slug: "other-owner-app"}, actor: other_owner)
+        %{name: "Other owner app", slug: "other-owner-app"},
+        actor: other_owner
+      )
 
     assert Storage.files_page(owner, other_app.id).total == 0
   end

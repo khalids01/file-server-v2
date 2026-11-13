@@ -47,6 +47,13 @@ defmodule AppWeb.FileApiTest do
     |> post("/api/v2/files", multipart(parts))
   end
 
+  defp upload_with_tags(token, filename, content, tags) do
+    upload(token, [
+      {"file", filename, content},
+      {"tags", nil, Jason.encode!(tags)}
+    ])
+  end
+
   test "authenticated multipart upload, paginated list, metadata, content and delete", %{
     token: token,
     owner: owner,
@@ -58,6 +65,7 @@ defmodule AppWeb.FileApiTest do
     assert file["applicationId"] == app.id
     assert file["sizeBytes"] == byte_size("hello private API")
     assert file["urls"]["content"] == "/api/v2/files/#{id}/content"
+    assert file["tags"] == []
     refute Map.has_key?(file, "object_key")
     refute Map.has_key?(file, "credentials")
     listing = authorized(token) |> get("/api/v2/files?limit=1&search=hello") |> json_response(200)
@@ -230,11 +238,219 @@ defmodule AppWeb.FileApiTest do
     assert upload(token, [{"file", "one.txt", "1"}, {"file", "two.txt", "2"}])
            |> json_response(400)
 
-    for query <- ["page=0", "limit=101", "page[]=1", "applicationId=#{app.id}"] do
+    for query <- [
+          "page=0",
+          "limit=101",
+          "page[]=1",
+          "applicationId=#{app.id}",
+          "tags=bad",
+          "tags[]="
+        ] do
       authorized(token) |> get("/api/v2/files?#{query}") |> json_response(400)
     end
 
     authorized(token) |> get("/api/v2/files/invalid-id") |> json_response(404)
     assert Storage.files(owner, app.id) == []
+  end
+
+  test "upload accepts optional tags, serializes tags and supports AND tag filters", %{
+    token: token
+  } do
+    one = upload_with_tags(token, "a.txt", "a", ["alpha", "beta"]) |> json_response(201)
+    two = upload_with_tags(token, "b.txt", "b", ["alpha"]) |> json_response(201)
+    _three = upload_with_tags(token, "c.txt", "c", ["beta"]) |> json_response(201)
+
+    assert one["data"]["tags"] == ["alpha", "beta"]
+    assert two["data"]["tags"] == ["alpha"]
+
+    filtered =
+      authorized(token)
+      |> get("/api/v2/files?tags[]=alpha&tags[]=beta")
+      |> json_response(200)
+
+    assert Enum.map(filtered["data"], & &1["id"]) == [one["data"]["id"]]
+
+    assert (authorized(token) |> get("/api/v2/files?tags[]=gamma") |> json_response(200))["data"] ==
+             []
+  end
+
+  test "invalid upload tags are rejected without storing files", %{
+    token: token,
+    owner: owner,
+    app: app
+  } do
+    assert upload_with_tags(token, "bad.txt", "x", [""]) |> json_response(400)
+    assert upload_with_tags(token, "bad2.txt", "x", ["bad\nline"]) |> json_response(400)
+
+    assert upload(token, [
+             {"file", "bad3.txt", "x"},
+             {"file", "tags", Jason.encode!(["a"])}
+           ])
+           |> json_response(400)
+
+    assert upload(token, [{"file", "bad4.txt", "x"}, {"tags", nil, "not-json"}])
+           |> json_response(400)
+
+    assert upload(token, [
+             {"file", "bad5.txt", "x"},
+             {"tags", nil, Jason.encode!(["a"])},
+             {"tags", nil, Jason.encode!(["b"])}
+           ])
+           |> json_response(400)
+
+    assert Storage.files(owner, app.id) == []
+  end
+
+  test "PATCH /api/v2/files/:id updates tags with files:write and isolation", %{
+    token: token,
+    owner: owner,
+    app: app
+  } do
+    {_, read} = Applications.issue_key!(owner, app.id, "Read key", ["files:read"])
+    {_, write} = Applications.issue_key!(owner, app.id, "Write key", ["files:write"])
+
+    id =
+      (upload_with_tags(token, "tagged.txt", "body", ["old"]) |> json_response(201))["data"]["id"]
+
+    read_resp =
+      read
+      |> authorized()
+      |> put_req_header("content-type", "application/json")
+      |> patch("/api/v2/files/#{id}", Jason.encode!(%{tags: ["x"]}))
+
+    assert json_response(read_resp, 403)["error"]["code"] == "INSUFFICIENT_SCOPE"
+
+    updated =
+      write
+      |> authorized()
+      |> put_req_header("content-type", "application/json")
+      |> patch("/api/v2/files/#{id}", Jason.encode!(%{tags: [" one ", "one", "two"]}))
+
+    assert json_response(updated, 200)["data"]["tags"] == ["one", "two"]
+
+    cleared =
+      token
+      |> authorized()
+      |> put_req_header("content-type", "application/json")
+      |> patch("/api/v2/files/#{id}", Jason.encode!(%{tags: []}))
+
+    assert json_response(cleared, 200)["data"]["tags"] == []
+
+    bad =
+      token
+      |> authorized()
+      |> put_req_header("content-type", "application/json")
+      |> patch("/api/v2/files/#{id}", Jason.encode!(%{tags: ["bad\nline"]}))
+
+    assert json_response(bad, 400)["error"]["code"] == "INVALID_TAGS"
+
+    missing =
+      token
+      |> authorized()
+      |> put_req_header("content-type", "application/json")
+      |> patch("/api/v2/files/#{id}", Jason.encode!(%{other: 1}))
+
+    assert json_response(missing, 400)["error"]["code"] == "INVALID_TAGS"
+
+    other_app =
+      Ash.create!(Applications.Application, %{name: "Other project", slug: "other-project-2"},
+        actor: owner
+      )
+
+    {_, other_write} =
+      Applications.issue_key!(owner, other_app.id, "Other write", ["files:write"])
+
+    cross =
+      other_write
+      |> authorized()
+      |> put_req_header("content-type", "application/json")
+      |> patch("/api/v2/files/#{id}", Jason.encode!(%{tags: ["x"]}))
+
+    assert json_response(cross, 404)["error"]["code"] == "FILE_NOT_FOUND"
+
+    assert (authorized(token) |> get("/api/v2/files/#{id}") |> json_response(200))["data"]["tags"] ==
+             []
+  end
+
+  test "mixed-case tag filtering matches normalized labels without widening results", %{
+    token: token,
+    owner: owner,
+    app: app
+  } do
+    created =
+      upload_with_tags(token, "finance.txt", "finance bytes", ["Finance", "finance", "Quarter 1"])
+      |> json_response(201)
+
+    assert created["data"]["tags"] == ["Finance", "Quarter 1"]
+    upload_with_tags(token, "other.txt", "other bytes", ["Quarter 1"]) |> json_response(201)
+
+    filtered =
+      authorized(token)
+      |> get("/api/v2/files?tags[]=FINANCE&tags[]=quarter+1")
+      |> json_response(200)
+
+    assert Enum.map(filtered["data"], & &1["id"]) == [created["data"]["id"]]
+    page = Storage.files_page(owner, app.id, tags: ["finance", "QUARTER 1"])
+    assert page.total == 1
+    assert Enum.map(page.files, & &1.id) == [created["data"]["id"]]
+    query = URI.encode_query([{"tags[]", "Finance' OR 1=1 --"}, {"page", "9"}])
+    empty = authorized(token) |> get("/api/v2/files?" <> query) |> json_response(200)
+    assert empty["data"] == []
+    assert empty["pagination"]["pages"] == 0
+    assert empty["pagination"]["page"] == 9
+  end
+
+  test "PATCH tag updates authenticate before bounded JSON parsing", %{token: token} do
+    build_conn()
+    |> put_req_header("content-type", "application/json")
+    |> put_req_header("content-length", "999999999")
+    |> patch("/api/v2/files/#{Ecto.UUID.generate()}", "malformed")
+    |> json_response(401)
+
+    conn =
+      token
+      |> authorized()
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("content-length", "999999999")
+      |> patch("/api/v2/files/#{Ecto.UUID.generate()}", "malformed")
+
+    assert json_response(conn, 413)["error"]["code"] == "FILE_TOO_LARGE"
+
+    bad_type =
+      token
+      |> authorized()
+      |> put_req_header("content-type", "text/plain")
+      |> patch("/api/v2/files/#{Ecto.UUID.generate()}", "tags")
+
+    assert json_response(bad_type, 415)["error"]["code"] == "INVALID_BODY"
+
+    authorized(token)
+    |> put_req_header("content-type", "application/json-invalid")
+    |> patch("/api/v2/files/#{Ecto.UUID.generate()}", Jason.encode!(%{tags: []}))
+    |> json_response(415)
+
+    authorized(token)
+    |> put_req_header("content-type", "application/json; charset=utf-8")
+    |> patch("/api/v2/files/not-a-uuid", Jason.encode!(%{tags: []}))
+    |> json_response(404)
+
+    unknown =
+      token
+      |> authorized()
+      |> put_req_header("content-type", "application/json")
+      |> patch("/api/v2/files/#{Ecto.UUID.generate()}", Jason.encode!(%{tags: [], extra: 1}))
+
+    assert json_response(unknown, 400)["error"]["code"] == "INVALID_TAGS"
+
+    oversized =
+      token
+      |> authorized()
+      |> put_req_header("content-type", "application/json")
+      |> patch(
+        "/api/v2/files/#{Ecto.UUID.generate()}",
+        ~s({"tags":["#{String.duplicate("a", 70000)}"]})
+      )
+
+    assert json_response(oversized, 413)["error"]["code"] == "FILE_TOO_LARGE"
   end
 end

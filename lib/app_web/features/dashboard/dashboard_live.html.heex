@@ -193,7 +193,7 @@
           for={to_form(%{}, as: :files)}
           id="file-filters"
           phx-submit="filter_files"
-          class="mb-5 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end"
+          class="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end"
         >
           <.input
             name="search"
@@ -204,6 +204,15 @@
             maxlength="200"
             placeholder="Search by filename…"
             autocomplete="off"
+          />
+          <.input
+            name="tags"
+            type="textarea"
+            label="Filter tags"
+            id="file-tag-filters"
+            value={Enum.join(@file_tags, "\n")}
+            rows="2"
+            placeholder="One tag per line"
           />
           <.select
             id="file-sort"
@@ -220,14 +229,14 @@
           <.button type="submit" class="mb-2"><.icon name="hero-magnifying-glass" />Apply</.button>
         </.form>
         <p
-          :if={@files == [] && @file_search != ""}
+          :if={@files == [] && (@file_search != "" || @file_tags != [])}
           id="files-search-empty"
           class="py-8 text-center text-sm text-muted-foreground"
         >
-          No files match "<span class="font-medium">{@file_search}</span>". Try a different search.
+          No files match the current filters. Try different search terms or tags.
         </p>
         <p
-          :if={@files == [] && @file_search == ""}
+          :if={@files == [] && @file_search == "" && @file_tags == []}
           id="files-empty"
           class="py-8 text-center text-sm text-muted-foreground"
         >
@@ -240,19 +249,30 @@
             class="flex flex-wrap items-center justify-between gap-3 py-4"
           >
             <div class="min-w-0">
-              <p class="break-all text-sm font-medium">{file.filename}</p><p class="mt-1 text-xs text-muted-foreground">
+              <p class="break-all text-sm font-medium">{file.filename}</p>
+              <p class="mt-1 text-xs text-muted-foreground">
                 {format_bytes(file.size)} · {storage_label(@connections, file.connection_id)} · {Calendar.strftime(
                   file.created_at,
                   "%d %b %Y"
                 )}
               </p>
+              <div :if={file.tags != []} class="mt-2 flex flex-wrap gap-1">
+                <.badge :for={tag <- file.tags} class="max-w-full break-all whitespace-normal">
+                  {tag}
+                </.badge>
+              </div>
             </div>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
               <.button
                 href={~p"/files/#{file.id}/download"}
                 variant="outline"
                 aria-label={"Download " <> file.filename}
               ><.icon name="hero-arrow-down-tray" />Download</.button><.button
+                variant="outline"
+                phx-click="edit_file_tags"
+                phx-value-id={file.id}
+                aria-label={"Edit tags for " <> file.filename}
+              ><.icon name="hero-tag" />Tags</.button><.button
                 variant="ghost"
                 phx-click="delete_file"
                 phx-value-id={file.id}
@@ -487,6 +507,36 @@
       </div>
     </.form>
   </.dialog>
+  <.dialog
+    :if={@editing_file}
+    id="edit-file-tags-dialog"
+    title="Edit file tags"
+    description={"One tag per line for " <> @editing_file.filename <> ". Tags are trimmed, deduplicated, and limited to 20 tags of 64 characters."}
+  >
+    <.form
+      for={to_form(%{}, as: :file_tags)}
+      id="edit-file-tags-form"
+      phx-submit="save_file_tags"
+      class="space-y-4"
+    >
+      <.input
+        name="tags"
+        type="textarea"
+        label="Tags"
+        id="file-tags-textarea"
+        value={@file_tags_input}
+        rows="8"
+        placeholder="report\nfinance\nq4"
+      />
+      <p class="text-xs text-muted-foreground">
+        Leave blank to remove all tags. No stored file bytes are modified.
+      </p>
+      <div class="flex justify-end gap-2">
+        <.button type="button" variant="outline" phx-click="close_dialog">Cancel</.button><.button id="save-file-tags">Save tags</.button>
+      </div>
+    </.form>
+  </.dialog>
+
   <.dialog
     :if={@deleting_file}
     id="delete-file-dialog"

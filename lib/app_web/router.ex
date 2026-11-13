@@ -92,6 +92,7 @@ defmodule AppWeb.Router do
     post "/files", FileApiController, :create
     get "/files/:id/content", FileApiController, :content
     get "/files/:id", FileApiController, :show
+    patch "/files/:id", FileApiController, :update
     delete "/files/:id", FileApiController, :delete
     get "/application", ApplicationApiController, :show
   end

@@ -12,10 +12,13 @@ defmodule AppWeb.DashboardLive do
        selected_app: nil,
        revoking_key: nil,
        deleting_file: nil,
+       editing_file: nil,
+       file_tags_input: "",
        files: [],
        file_search: "",
        file_sort: "newest",
        file_page: 1,
+       file_tags: [],
        file_limit: App.Storage.files_per_page(),
        file_total: 0,
        file_pages: 1,
@@ -53,7 +56,8 @@ defmodule AppWeb.DashboardLive do
         file_search: file_param(params["search"], 200),
         file_sort:
           if(params["sort"] in App.Storage.file_sorts(), do: params["sort"], else: "newest"),
-        file_page: page_param(params["page"])
+        file_page: page_param(params["page"]),
+        file_tags: file_tags_param(params)
       )
       |> load_apps()
 
@@ -64,7 +68,7 @@ defmodule AppWeb.DashboardLive do
            socket
            |> assign(selected_app: app, show_storage: false, storage_error: nil)
            |> load_keys()
-           |> load_storage()}
+           |> load_storage(sync_url: true)}
 
         _ ->
           {:noreply,
@@ -87,6 +91,8 @@ defmodule AppWeb.DashboardLive do
          show_create: false,
          revoking_key: nil,
          deleting_file: nil,
+         editing_file: nil,
+         file_tags_input: "",
          show_storage: false
        )}
 
@@ -176,12 +182,19 @@ defmodule AppWeb.DashboardLive do
 
   def handle_event("filter_files", params, socket) do
     search = file_param(params["search"], 200)
+    sort = if params["sort"] in App.Storage.file_sorts(), do: params["sort"], else: "newest"
 
-    sort =
-      if params["sort"] in App.Storage.file_sorts(), do: params["sort"], else: "newest"
+    case parse_tags_input(params["tags"]) do
+      {:ok, tags} ->
+        {:noreply,
+         push_patch(
+           socket,
+           to: files_path(socket.assigns.selected_app.id, search, sort, tags, 1)
+         )}
 
-    {:noreply,
-     push_patch(socket, to: files_path(socket.assigns.selected_app.id, search, sort, 1))}
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
   end
 
   def handle_event("cancel_upload", %{"ref" => ref}, socket),
@@ -213,6 +226,51 @@ defmodule AppWeb.DashboardLive do
         else: put_flash(socket, :info, "Files uploaded")
 
     {:noreply, socket |> load_storage(sync_url: true) |> load_apps()}
+  end
+
+  def handle_event("edit_file_tags", %{"id" => id}, socket) do
+    case Ash.get(App.Storage.StoredFile, id, actor: socket.assigns.current_user) do
+      {:ok, %App.Storage.StoredFile{application_id: app_id} = file}
+      when app_id == socket.assigns.selected_app.id ->
+        {:noreply,
+         assign(socket,
+           editing_file: file,
+           file_tags_input: Enum.join(file.tags || [], "\n")
+         )}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "File unavailable")}
+    end
+  end
+
+  def handle_event("save_file_tags", params, socket) do
+    file = socket.assigns.editing_file
+
+    case parse_tags_input(params["tags"]) do
+      {:ok, tags} ->
+        case App.Storage.update_tags(
+               socket.assigns.current_user,
+               socket.assigns.selected_app.id,
+               file.id,
+               tags
+             ) do
+          {:ok, _updated} ->
+            {:noreply,
+             socket
+             |> assign(editing_file: nil, file_tags_input: "")
+             |> put_flash(:info, "File tags updated")
+             |> load_storage()}
+
+          {:error, {:invalid_tags, message}} ->
+            {:noreply, put_flash(socket, :error, message)}
+
+          _ ->
+            {:noreply, put_flash(socket, :error, "Unable to update file tags.")}
+        end
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
   end
 
   def handle_event("delete_file", %{"id" => id}, socket) do
@@ -370,39 +428,51 @@ defmodule AppWeb.DashboardLive do
     actor = socket.assigns.current_user
     app_id = socket.assigns.selected_app.id
 
-    result =
-      App.Storage.files_page(actor, app_id,
-        search: socket.assigns.file_search,
-        sort: socket.assigns.file_sort,
-        page: socket.assigns.file_page
-      )
+    case App.Storage.files_page(actor, app_id,
+           search: socket.assigns.file_search,
+           sort: socket.assigns.file_sort,
+           page: socket.assigns.file_page,
+           tags: socket.assigns.file_tags
+         ) do
+      %{files: _} = result ->
+        clamped? = result.page != socket.assigns.file_page
 
-    clamped? = result.page != socket.assigns.file_page
+        socket =
+          socket
+          |> assign(
+            files: result.files,
+            file_total: result.total,
+            file_page: result.page,
+            file_pages: result.pages,
+            file_limit: result.limit,
+            file_search: result.search,
+            file_sort: result.sort,
+            file_tags: result.tags,
+            file_prev:
+              if(result.page > 1,
+                do: files_path(app_id, result.search, result.sort, result.tags, result.page - 1)
+              ),
+            file_next:
+              if(result.page < result.pages,
+                do: files_path(app_id, result.search, result.sort, result.tags, result.page + 1)
+              ),
+            connections: App.Storage.connections(actor, app_id)
+          )
+          |> stream(:files, result.files, reset: true)
 
-    socket =
-      socket
-      |> assign(
-        files: result.files,
-        file_total: result.total,
-        file_page: result.page,
-        file_pages: result.pages,
-        file_limit: result.limit,
-        file_search: result.search,
-        file_sort: result.sort,
-        file_prev:
-          if(result.page > 1, do: files_path(app_id, result.search, result.sort, result.page - 1)),
-        file_next:
-          if(result.page < result.pages,
-            do: files_path(app_id, result.search, result.sort, result.page + 1)
-          ),
-        connections: App.Storage.connections(actor, app_id)
-      )
-      |> stream(:files, result.files, reset: true)
+        if clamped? and Keyword.get(opts, :sync_url, false) and connected?(socket) do
+          push_patch(socket,
+            to: files_path(app_id, result.search, result.sort, result.tags, result.page)
+          )
+        else
+          socket
+        end
 
-    if clamped? and Keyword.get(opts, :sync_url, false) and connected?(socket) do
-      push_patch(socket, to: files_path(app_id, result.search, result.sort, result.page))
-    else
-      socket
+      {:error, _message} ->
+        socket
+        |> assign(file_tags: [], file_search: "", file_sort: "newest", file_page: 1)
+        |> put_flash(:error, "Invalid file filters.")
+        |> load_storage(Keyword.put(opts, :sync_url, true))
     end
   end
 
@@ -451,15 +521,39 @@ defmodule AppWeb.DashboardLive do
   defp page_param(value) when is_integer(value) and value >= 1, do: Kernel.min(value, 100_000)
   defp page_param(_), do: 1
 
-  defp files_path(app_id, search, sort, page) do
-    query =
-      [tab: "files"]
-      |> then(fn base -> if search != "", do: Keyword.put(base, :search, search), else: base end)
-      |> then(fn base -> if sort != "newest", do: Keyword.put(base, :sort, sort), else: base end)
-      |> then(fn base -> if page != 1, do: Keyword.put(base, :page, page), else: base end)
-      |> URI.encode_query()
+  defp file_tags_param(%{"tags[]" => tags}) when is_list(tags),
+    do: Enum.filter(tags, &is_binary/1)
 
-    "/dashboard/applications/#{app_id}?#{query}"
+  defp file_tags_param(%{"tags[]" => tag}) when is_binary(tag), do: [tag]
+  defp file_tags_param(%{"tags" => tags}) when is_list(tags), do: Enum.filter(tags, &is_binary/1)
+  defp file_tags_param(%{"tags" => tag}) when is_binary(tag), do: [tag]
+  defp file_tags_param(_), do: []
+
+  defp parse_tags_input(nil), do: {:ok, []}
+  defp parse_tags_input(""), do: {:ok, []}
+
+  defp parse_tags_input(value) when is_binary(value) do
+    tags =
+      value
+      |> String.split(~r/\r?\n/, trim: false)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    App.Storage.validate_tags_filter(tags)
+  end
+
+  defp parse_tags_input(tags) when is_list(tags), do: App.Storage.validate_tags_filter(tags)
+  defp parse_tags_input(_), do: {:error, "Tags must be one per line."}
+
+  defp files_path(app_id, search, sort, tags, page) do
+    params = []
+    params = if sort != "newest", do: params ++ [{"sort", sort}], else: params
+    params = if search != "", do: params ++ [{"search", search}], else: params
+    params = params ++ [{"tab", "files"}]
+    params = if page != 1, do: params ++ [{"page", to_string(page)}], else: params
+    params = params ++ Enum.map(tags, &{"tags[]", &1})
+
+    "/dashboard/applications/#{app_id}?#{URI.encode_query(params)}"
   end
 
   defp section(action),

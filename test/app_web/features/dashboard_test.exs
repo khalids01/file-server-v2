@@ -61,4 +61,63 @@ defmodule AppWeb.DashboardUITest do
     assert {:error, {:live_redirect, %{to: "/dashboard/applications"}}} =
              live(login(build_conn(), outsider), "/dashboard/applications/#{app.id}")
   end
+
+  test "dashboard edits tags and filters with URL-preserved search/sort/page state", %{conn: conn} do
+    owner = user("tags-ui@example.com")
+
+    app =
+      Ash.create!(App.Applications.Application, %{name: "Tags app", slug: "tags-ui-app"},
+        actor: owner
+      )
+
+    for i <- 1..30 do
+      Ash.create!(
+        App.Storage.StoredFile,
+        %{
+          filename: "match-#{String.pad_leading(Integer.to_string(i), 3, "0")}.txt",
+          size: i,
+          content_type: "text/plain",
+          object_key: "#{owner.id}/#{app.id}/#{Ecto.UUID.generate()}",
+          application_id: app.id,
+          tags: if(i == 30, do: ["alpha"], else: [])
+        },
+        actor: owner,
+        authorize?: false
+      )
+    end
+
+    {:ok, view, _} =
+      live(
+        login(conn, owner),
+        "/dashboard/applications/#{app.id}?tab=files&search=match&sort=name&page=2"
+      )
+
+    assert has_element?(view, "#file-page-status", "Page 2 of 2")
+    assert render(view) =~ "alpha"
+
+    view
+    |> element("button[aria-label='Edit tags for match-030.txt']")
+    |> render_click()
+
+    assert has_element?(view, "#edit-file-tags-dialog")
+
+    view
+    |> form("#edit-file-tags-form", %{tags: "alpha\nbeta"})
+    |> render_submit()
+
+    assert has_element?(view, "#file-page-status", "Page 2 of 2")
+    assert render(view) =~ "beta"
+
+    view
+    |> form("#file-filters", %{search: "match", sort: "name", tags: "beta"})
+    |> render_submit()
+
+    path = assert_patch(view)
+    assert path =~ "tab=files"
+    assert path =~ "search=match"
+    assert path =~ "sort=name"
+    assert path =~ "tags%5B%5D=beta" or path =~ "tags[]=beta"
+    refute path =~ "page="
+    assert render(view) =~ "match-030.txt"
+  end
 end

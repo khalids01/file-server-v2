@@ -16,8 +16,22 @@ defmodule App.Storage.StoredFile do
 
     create :create do
       primary? true
-      accept [:filename, :size, :content_type, :object_key, :application_id, :connection_id]
+
+      accept [
+        :filename,
+        :size,
+        :content_type,
+        :object_key,
+        :application_id,
+        :connection_id,
+        :tags
+      ]
+
       change relate_actor(:user)
+    end
+
+    update :update_tags do
+      accept [:tags]
     end
   end
 
@@ -27,7 +41,7 @@ defmodule App.Storage.StoredFile do
       authorize_if expr(user_id == ^actor(:id))
     end
 
-    policy action_type([:create, :destroy]) do
+    policy action_type([:create, :update, :destroy]) do
       forbid_if always()
     end
   end
@@ -38,6 +52,7 @@ defmodule App.Storage.StoredFile do
     attribute :size, :integer, allow_nil?: false, constraints: [min: 0]
     attribute :content_type, :string, allow_nil?: false
     attribute :object_key, :string, allow_nil?: false, sensitive?: true
+    attribute :tags, {:array, :string}, allow_nil?: false, default: []
     create_timestamp :created_at
   end
 

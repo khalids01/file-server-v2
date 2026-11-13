@@ -334,4 +334,57 @@ defmodule App.StorageTest do
     assert has_element?(view, "#files-empty")
     assert Storage.files(owner, app.id) == []
   end
+
+  test "validate_tags normalizes, deduplicates and rejects invalid values" do
+    assert {:ok, ["a", "b"]} = Storage.validate_tags([" a ", "b", "a", "  b  "])
+    assert {:ok, []} = Storage.validate_tags([])
+    assert {:error, _} = Storage.validate_tags([""])
+    assert {:error, _} = Storage.validate_tags(["   "])
+    assert {:error, _} = Storage.validate_tags([String.duplicate("a", 65)])
+    assert {:error, _} = Storage.validate_tags([String.duplicate("a", 257)])
+    assert {:error, _} = Storage.validate_tags(["a" <> String.duplicate("\u0301", 128)])
+    assert {:error, _} = Storage.validate_tags(["bad\nline"])
+    assert {:error, _} = Storage.validate_tags(["bad\x00"])
+    assert {:error, _} = Storage.validate_tags(Enum.map(1..21, &"tag-#{&1}"))
+    assert {:error, _} = Storage.validate_tags([1])
+    assert {:error, _} = Storage.validate_tags("nope")
+  end
+
+  test "optional upload tags and tag updates validate actor and application ownership", %{
+    owner: owner,
+    app: app,
+    source: source
+  } do
+    assert {:ok, file} =
+             Storage.upload(owner, app.id, source, "tagged.txt", "text/plain",
+               tags: [" Alpha ", "alpha", "beta"]
+             )
+
+    assert file.tags == ["Alpha", "beta"]
+
+    assert {:ok, updated} = Storage.update_tags(owner, app.id, file.id, ["new", "new"])
+    assert updated.tags == ["new"]
+    assert {:ok, cleared} = Storage.update_tags(owner, app.id, file.id, [])
+    assert cleared.tags == []
+    assert {:error, {:invalid_tags, _}} = Storage.update_tags(owner, app.id, file.id, ["bad\n"])
+
+    assert {:error, _} =
+             Storage.upload(owner, app.id, source, "bad.txt", "text/plain", tags: [""])
+
+    same_owner_other_app =
+      Ash.create!(App.Applications.Application, %{name: "Second app", slug: "second-app"},
+        actor: owner
+      )
+
+    assert {:error, :not_found} =
+             Storage.update_tags(owner, same_owner_other_app.id, file.id, ["x"])
+
+    outsider = user("tag-outsider-#{Ecto.UUID.generate()}@example.com")
+
+    assert {:error, :not_found} = Storage.update_tags(outsider, app.id, file.id, ["x"])
+
+    [stored] = Storage.files(owner, app.id)
+    assert stored.tags == []
+    assert File.read!(elem(Storage.Local.path(stored.object_key), 1)) == "private file bytes"
+  end
 end
