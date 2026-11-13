@@ -120,8 +120,7 @@ This is the v2 private file contract. The existing v1 SDK uses `/api/v1` and als
 expects tags, image dimensions/variants, transforms and delivery URL behavior.
 Those contracts are not implemented here. No v1 aliases or public file URLs are
 introduced. `/api/v2/application` advertises `storage_ready: true`, `api_version:
-"v2"`, and `sdk_v1_compatible: false`. V1 SDK conformance and migration remain a
-separate milestone; do not point an unchanged v1 SDK at these routes yet. This v2
+"v2"`, and `sdk_v1_compatible: false`. V1 SDK conformance and legacy adapters are intentionally out of scope; use the v2 contract for new clients. This v2
 tags milestone is API/dashboard-only and does not claim v1 SDK tag compatibility.
 
 ## Private image variants

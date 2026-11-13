@@ -221,14 +221,39 @@ defmodule App.Storage do
   end
 
   # ---- tags update ----
-  def update_tags(actor, app_id, file_id, tags) do
+  def update_tags(actor, app_id, file_id, tags),
+    do: change_tags(actor, app_id, file_id, :replace, tags)
+
+  def change_tags(actor, app_id, file_id, mode, tags) when mode in [:add, :remove, :replace] do
     with {:ok, _app} <- Ash.get(App.Applications.Application, app_id, actor: actor),
-         {:ok, normalized} <- validate_tags(tags),
-         {:ok, %StoredFile{} = file} <- fetch_scoped_file(actor, file_id, app_id),
-         true <- file.status == "ready" do
-      file
-      |> Ash.Changeset.for_update(:update_tags, %{tags: normalized}, actor: actor)
-      |> internal_update()
+         {:ok, normalized} <- validate_tags(tags) do
+      FileLock.with_lock(file_id, fn ->
+        with {:ok, %StoredFile{status: "ready"} = file} <-
+               fetch_scoped_file(actor, file_id, app_id) do
+          updated =
+            case mode do
+              :replace ->
+                normalized
+
+              :add ->
+                (file.tags ++ normalized) |> Enum.uniq_by(&String.downcase/1)
+
+              :remove ->
+                removed = MapSet.new(Enum.map(normalized, &String.downcase/1))
+                Enum.reject(file.tags, &MapSet.member?(removed, String.downcase(&1)))
+            end
+
+          with {:ok, validated} <- validate_tags(updated) do
+            file
+            |> Ash.Changeset.for_update(:update_tags, %{tags: validated}, actor: actor)
+            |> internal_update()
+          else
+            {:error, message} -> {:error, {:invalid_tags, message}}
+          end
+        else
+          _ -> {:error, :not_found}
+        end
+      end)
     else
       {:error, message} when is_binary(message) -> {:error, {:invalid_tags, message}}
       _ -> {:error, :not_found}

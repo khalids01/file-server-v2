@@ -30,13 +30,17 @@ Completed (2026-11-14):
 
 - Reliability/images: account-wide quota reservations, tracked pending writes and durable Oban cleanup/reconciliation; isolated Image/Vix native previews with orientation, metadata stripping and no upscale; private session and scoped API variants, dashboard previews/status/retry and account usage. See [the guide](../docs/storage-reliability-images.md) for deployment and resource limits.
 
+- File management: URL-persisted grid/list, reusable private previews/placeholders, file details, current-page multi-select, confirmed bulk delete and add/remove/replace tags with partial errors, per-file upload outcomes/reselection, and clipboard feedback. See [the guide](../docs/file-management.md).
+
+V1 compatibility is explicitly out of scope; the API remains independently versioned v2.
+
 Remaining:
 
-- v1 SDK compatibility (current API is v2; `sdk_v1_compatible: false`).
+- Expiring/revocable share links and application analytics.
 - Imports from v1 or remote buckets.
 - Backups and transfers.
 - Production verification (HTTPS, DATABASE_URL, secrets, persistent vault key,
   real SMTP/GitHub credentials, no real buckets in automated tests).
 
-Verification: 104 Elixir tests, 13 JavaScript tests, asset build and Ash schema checks.
+Verification: 115 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
 Real-bucket and browser visual checks remain unverified.

@@ -182,6 +182,27 @@
             disabled={@uploads.documents.entries == [] || upload_errors(@uploads.documents) != []}
           >Upload files</.button>
         </.form>
+        <ul
+          :if={@upload_results != []}
+          id="upload-results"
+          class="mt-4 space-y-2"
+          aria-live="polite"
+        >
+          <li
+            :for={{result, index} <- Enum.with_index(@upload_results)}
+            id={"upload-result-#{index}"}
+            class="rounded-md border border-border p-3 text-sm"
+          >
+            <span class="font-medium">{result.name}</span>
+            · {upload_result(result.result)}
+            <.button
+              :if={!match?({:ok, _}, result.result)}
+              type="button"
+              variant="ghost"
+              phx-click="retry_upload"
+            >Retry: reselect file</.button>
+          </li>
+        </ul>
       </.card>
       <.card :if={@storage_usage} class="p-5" id="account-storage-usage">
         <p class="text-sm font-medium">Account storage</p>
@@ -197,6 +218,72 @@
             {if @file_total == 1, do: "1 file", else: "#{@file_total} files"} · Private downloads
           </span>
         </div>
+        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div
+            class="inline-flex gap-1 rounded-lg border border-border p-1"
+            role="group"
+            aria-label="File view"
+          >
+            <.button
+              id="files-view-list"
+              type="button"
+              variant={if @file_view == "list", do: "default", else: "ghost"}
+              aria-pressed={to_string(@file_view == "list")}
+              phx-click="file_view"
+              phx-value-view="list"
+            ><.icon name="hero-list-bullet" />List</.button>
+            <.button
+              id="files-view-grid"
+              type="button"
+              variant={if @file_view == "grid", do: "default", else: "ghost"}
+              aria-pressed={to_string(@file_view == "grid")}
+              phx-click="file_view"
+              phx-value-view="grid"
+            ><.icon name="hero-squares-2x2" />Grid</.button>
+          </div>
+          <div :if={@files != []} class="flex flex-wrap items-center gap-2">
+            <.button id="select-page" type="button" variant="ghost" phx-click="select_page">Select page</.button>
+            <.button
+              :if={MapSet.size(@selected_files) > 0}
+              id="clear-selection"
+              type="button"
+              variant="ghost"
+              phx-click="clear_selection"
+            >Clear</.button>
+          </div>
+        </div>
+        <div
+          :if={MapSet.size(@selected_files) > 0}
+          id="file-bulk-toolbar"
+          class="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/40 p-3"
+        >
+          <span id="selected-file-count" class="text-sm font-medium">{MapSet.size(@selected_files)} selected</span>
+          <.button
+            id="bulk-tags-button"
+            type="button"
+            variant="outline"
+            phx-click="open_bulk"
+            phx-value-action="tags"
+          ><.icon name="hero-tag" />Edit tags</.button>
+          <.button
+            id="bulk-delete-button"
+            type="button"
+            variant="destructive"
+            phx-click="open_bulk"
+            phx-value-action="delete"
+          ><.icon name="hero-trash" />Delete selected</.button>
+        </div>
+        <p :if={@bulk_feedback} id="bulk-feedback" role="status" class="mb-4 text-sm">
+          {@bulk_feedback}. Failed files remain selected for retry.
+        </p>
+        <ul
+          :if={@bulk_errors != []}
+          id="bulk-errors"
+          class="mb-4 space-y-1 text-sm text-destructive"
+          aria-live="polite"
+        >
+          <li :for={error <- @bulk_errors}>{error.name}: {error.message}</li>
+        </ul>
         <.form
           for={to_form(%{}, as: :files)}
           id="file-filters"
@@ -250,22 +337,57 @@
         >
           No files yet. Upload your first file above.
         </p>
-        <div id="stored-files" phx-update="stream" class="divide-y divide-border">
+        <div
+          id="stored-files"
+          phx-update="stream"
+          data-view={@file_view}
+          class={
+            if @file_view == "grid",
+              do: "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3",
+              else: "divide-y divide-border"
+          }
+        >
           <div
             :for={{dom_id, file} <- @streams.files}
             id={dom_id}
-            class="flex flex-wrap items-center justify-between gap-3 py-4"
+            class={
+              if @file_view == "grid",
+                do:
+                  "flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-sm",
+                else: "flex flex-wrap items-center justify-between gap-3 py-4"
+            }
           >
-            <div class="flex min-w-0 items-center gap-3">
-              <img
-                :if={Enum.any?(file.variants, &(&1.name == "thumbnail" and &1.status == "ready"))}
-                src={~p"/files/#{file.id}/variants/thumbnail"}
-                alt={file.filename}
-                loading="lazy"
-                class="h-12 w-12 rounded-md border border-border object-cover"
-              />
+            <div class={
+              if @file_view == "grid",
+                do: "flex w-full min-w-0 flex-col gap-3",
+                else: "flex min-w-0 items-center gap-3"
+            }>
+              <.button
+                id={"select-file-#{file.id}"}
+                type="button"
+                variant="ghost"
+                class="size-8 shrink-0 p-0"
+                role="checkbox"
+                aria-checked={to_string(MapSet.member?(@selected_files, file.id))}
+                aria-label={"Select " <> file.filename}
+                phx-click="toggle_file"
+                phx-value-id={file.id}
+              >
+                <.icon name={
+                  if MapSet.member?(@selected_files, file.id),
+                    do: "hero-check-circle-solid",
+                    else: "hero-stop"
+                } />
+              </.button>
+              <.file_media file={file} view={@file_view} />
               <div class="min-w-0">
-                <p class="break-all text-sm font-medium">{file.filename}</p>
+                <button
+                  id={"file-details-#{file.id}"}
+                  type="button"
+                  class="break-all text-left text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  phx-click="file_details"
+                  phx-value-id={file.id}
+                >{file.filename}</button>
                 <p
                   :if={file.processing_state != "not_applicable"}
                   id={"processing-#{file.id}"}
@@ -295,6 +417,7 @@
               </div>
             </div>
             <div class="flex flex-wrap gap-2">
+              <.private_download_link file={file} />
               <.button
                 href={~p"/files/#{file.id}/download"}
                 variant="outline"
@@ -537,6 +660,100 @@
       <div class="flex justify-end gap-2">
         <.button type="button" variant="outline" phx-click="close_dialog">Cancel</.button><.button phx-disable-with="Saving…">Save connection</.button>
       </div>
+    </.form>
+  </.dialog>
+  <.dialog
+    :if={@file_details}
+    id="file-details-dialog"
+    title={@file_details.filename}
+    description="Private file details. Download links require sign-in and file access."
+  >
+    <img
+      :if={display_variant(@file_details)}
+      src={~p"/files/#{@file_details.id}/variants/display_webp"}
+      alt={@file_details.filename}
+      class="mb-5 max-h-72 w-full rounded-lg bg-muted object-contain"
+    />
+    <div
+      :if={!display_variant(@file_details)}
+      class="mb-5 flex h-32 items-center justify-center rounded-lg bg-muted"
+    >
+      <.icon name="hero-document" class="size-12 text-muted-foreground" />
+    </div>
+    <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-sm">
+      <dt class="text-muted-foreground">Size</dt><dd>{format_bytes(@file_details.size)}</dd>
+      <dt class="text-muted-foreground">Type</dt><dd class="break-all">
+        {@file_details.content_type}
+      </dd>
+      <dt class="text-muted-foreground">Uploaded</dt><dd>
+        {Calendar.strftime(@file_details.created_at, "%d %b %Y · %H:%M UTC")}
+      </dd>
+      <dt class="text-muted-foreground">Dimensions</dt><dd>
+        {if @file_details.width,
+          do: "#{@file_details.width} × #{@file_details.height} px (source)",
+          else: "Not available"}
+      </dd>
+      <dt class="text-muted-foreground">Storage</dt><dd>
+        {storage_label(@connections, @file_details.connection_id)}
+      </dd>
+      <dt class="text-muted-foreground">Processing</dt><dd>{@file_details.processing_state}</dd>
+      <dt class="text-muted-foreground">Tags</dt><dd class="flex flex-wrap gap-1">
+        <.badge :for={tag <- @file_details.tags}>{tag}</.badge><span :if={
+          @file_details.tags == []
+        }>No tags</span>
+      </dd>
+    </dl>
+    <div class="mt-6 flex gap-2">
+      <.button href={~p"/files/#{@file_details.id}/download"}><.icon name="hero-arrow-down-tray" />Download original</.button>
+    </div>
+  </.dialog>
+  <.dialog
+    :if={@bulk_dialog == "delete"}
+    id="bulk-delete-dialog"
+    title="Delete selected files?"
+    description={"Permanently delete #{MapSet.size(@selected_files)} files from their original storage? Failed deletions retain their metadata and can be retried."}
+  >
+    <div class="flex justify-end gap-2">
+      <.button type="button" variant="outline" phx-click="close_dialog">Cancel</.button><.button
+        id="confirm-bulk-delete"
+        type="button"
+        variant="destructive"
+        phx-click="confirm_bulk_delete"
+        phx-disable-with="Deleting…"
+      >Delete selected files</.button>
+    </div>
+  </.dialog>
+  <.dialog
+    :if={@bulk_dialog == "tags"}
+    id="bulk-tags-dialog"
+    title="Edit selected file tags"
+    description="Changes apply to selected files. One tag per line; up to 20 tags per file."
+  >
+    <.form for={to_form(%{})} id="bulk-tags-form" phx-submit="bulk_tags" class="space-y-4">
+      <.select
+        id="bulk-tags-mode"
+        name="mode"
+        label="Operation"
+        value="add"
+        options={[
+          {"Add tags", "add"},
+          {"Remove matching tags", "remove"},
+          {"Replace all tags", "replace"}
+        ]}
+      />
+      <.input
+        id="bulk-tags-input"
+        type="textarea"
+        name="tags"
+        label="Tags"
+        value=""
+        rows="5"
+        maxlength="6000"
+      />
+      <p class="text-xs text-muted-foreground">
+        Replace with an empty list clears all tags. Tag matching ignores case.
+      </p>
+      <.button id="apply-bulk-tags" phx-disable-with="Saving…">Apply to selected files</.button>
     </.form>
   </.dialog>
   <.dialog

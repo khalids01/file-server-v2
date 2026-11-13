@@ -1,3 +1,4 @@
+import {Clipboard} from "./clipboard.mjs"
 import {Dialog, Select} from "./controls.mjs"
 import {Sidebar} from "./sidebar.mjs"
 import {initUserMenus} from "./user_menu.mjs"
@@ -35,7 +36,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, Sidebar, Dialog, Select},
+  hooks: {...colocatedHooks, Sidebar, Dialog, Select, Clipboard},
 })
 
 // Show progress bar on live navigation and form submits

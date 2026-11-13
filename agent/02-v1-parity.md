@@ -1,3 +1,5 @@
+> Historical reference — superseded 2026-11-14 by the [active v2 roadmap](01-replacement-plan.md). V1 compatibility and workspace/legacy-auth requirements in this document are not planned work.
+
 # V1 behavior and parity inventory
 
 Evidence is from the checked-out source, not an audit of deployed production.

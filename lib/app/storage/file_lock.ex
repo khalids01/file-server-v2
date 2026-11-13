@@ -3,6 +3,7 @@ defmodule App.Storage.FileLock do
   @namespace 0x711E10C5
 
   def with_lock(file_id, timeout \\ 30_000, fun) do
+    file_id = Ecto.UUID.cast!(file_id)
     owner = self()
     ref = make_ref()
     {guard, monitor} = spawn_monitor(fn -> guard(owner, ref, file_id) end)

@@ -46,4 +46,4 @@ These are application bounds, **not a hard native RSS limit**. Set a deployment/
 - `lib/app_web/api/file_api_controller.ex`: scoped API metadata/previews.
 - `lib/app_web/features/dashboard/`: Files UI, previews and usage display.
 
-V1 SDK compatibility, imports, public image delivery/CDN, transfers and backups remain separate milestones.
+V1 SDK compatibility is out of scope. Explicit sharing, optional imports, public image delivery/CDN, transfers and backups remain separate milestones.

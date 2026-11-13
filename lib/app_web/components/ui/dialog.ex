@@ -19,7 +19,7 @@ defmodule AppWeb.UI.Dialog do
     >
       <div class="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h2 id={@id <> "-title"} class="text-lg font-semibold">{@title}</h2><p
+          <h2 id={@id <> "-title"} class="break-all text-lg font-semibold">{@title}</h2><p
             :if={@description}
             id={@id <> "-description"}
             class="mt-2 text-sm text-muted-foreground"

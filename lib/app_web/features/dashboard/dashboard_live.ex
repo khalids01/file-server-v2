@@ -1,6 +1,7 @@
 defmodule AppWeb.DashboardLive do
   use AppWeb, :live_view
   require Ash.Query
+  import AppWeb.FileComponents
   alias App.Applications
   alias App.Applications.{Application, ApplicationKey}
   on_mount {AppWeb.LiveUserAuth, :live_user_required}
@@ -19,6 +20,13 @@ defmodule AppWeb.DashboardLive do
        files: [],
        storage_usage: nil,
        file_search: "",
+       file_view: "list",
+       selected_files: MapSet.new(),
+       file_details: nil,
+       bulk_dialog: nil,
+       bulk_feedback: nil,
+       bulk_errors: [],
+       upload_results: [],
        file_sort: "newest",
        file_page: 1,
        file_tags: [],
@@ -48,12 +56,28 @@ defmodule AppWeb.DashboardLive do
   end
 
   def handle_params(params, _, socket) do
+    socket =
+      if socket.assigns.selected_app && socket.assigns.selected_app.id != params["id"] do
+        Enum.reduce(socket.assigns.uploads.documents.entries, socket, fn entry, acc ->
+          cancel_upload(acc, :documents, entry.ref)
+        end)
+        |> assign(upload_results: [])
+      else
+        socket
+      end
+
     tab = if params["tab"] in ["settings", "keys", "files"], do: params["tab"], else: "settings"
 
     socket =
       socket
       |> assign(
         selected_app: nil,
+        selected_files: MapSet.new(),
+        file_details: nil,
+        bulk_dialog: nil,
+        bulk_feedback: nil,
+        bulk_errors: [],
+        file_view: if(params["view"] == "grid", do: "grid", else: "list"),
         plaintext_key: nil,
         tab: tab,
         file_search: file_param(params["search"], 200),
@@ -88,17 +112,129 @@ defmodule AppWeb.DashboardLive do
     Process.send_after(self(), :refresh_file_processing, 3_000)
 
     if socket.assigns.selected_app && socket.assigns.tab == "files" do
-      {:noreply, load_storage(socket)}
+      socket = load_storage(socket)
+
+      socket =
+        if socket.assigns.file_details do
+          case App.Storage.FileManagement.details(
+                 socket.assigns.current_user,
+                 socket.assigns.selected_app.id,
+                 socket.assigns.file_details.id
+               ) do
+            {:ok, file} -> assign(socket, file_details: file)
+            _ -> assign(socket, file_details: nil)
+          end
+        else
+          socket
+        end
+
+      {:noreply, socket}
     else
       {:noreply, socket}
     end
   end
 
-  def handle_event("retry_image", %{"id" => id}, socket) do
-    case App.Storage.retry_processing(socket.assigns.current_user, id) do
-      {:ok, _} -> {:noreply, load_storage(socket)}
+  def handle_event(
+        "retry_image",
+        %{"id" => id},
+        %{assigns: %{selected_app: %{id: app_id}}} = socket
+      ) do
+    with {:ok, _} <- App.Storage.FileManagement.details(socket.assigns.current_user, app_id, id),
+         {:ok, _} <- App.Storage.retry_processing(socket.assigns.current_user, id) do
+      {:noreply, load_storage(socket)}
+    else
       _ -> {:noreply, put_flash(socket, :error, "Unable to retry this image.")}
     end
+  end
+
+  def handle_event("file_view", %{"view" => view}, %{assigns: %{selected_app: %{id: _}}} = socket)
+      when view in ["grid", "list"] do
+    a = socket.assigns
+
+    {:noreply,
+     push_patch(socket,
+       to:
+         files_path(a.selected_app.id, a.file_search, a.file_sort, a.file_tags, a.file_page, view)
+     )}
+  end
+
+  def handle_event("file_details", %{"id" => id}, %{assigns: %{selected_app: %{id: _}}} = socket) do
+    case App.Storage.FileManagement.details(
+           socket.assigns.current_user,
+           socket.assigns.selected_app.id,
+           id
+         ) do
+      {:ok, file} -> {:noreply, assign(socket, file_details: file)}
+      _ -> {:noreply, put_flash(socket, :error, "File unavailable")}
+    end
+  end
+
+  def handle_event("toggle_file", %{"id" => id}, socket) do
+    ids = socket.assigns.selected_files
+
+    if Enum.any?(socket.assigns.files, &(&1.id == id)) do
+      ids = if MapSet.member?(ids, id), do: MapSet.delete(ids, id), else: MapSet.put(ids, id)
+
+      {:noreply,
+       socket
+       |> assign(selected_files: ids, bulk_feedback: nil, bulk_errors: [])
+       |> restream_files()}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("select_page", _, socket) do
+    {:noreply,
+     socket
+     |> assign(
+       selected_files: MapSet.new(Enum.map(socket.assigns.files, & &1.id)),
+       bulk_feedback: nil,
+       bulk_errors: []
+     )
+     |> restream_files()}
+  end
+
+  def handle_event("clear_selection", _, socket) do
+    {:noreply,
+     socket
+     |> assign(selected_files: MapSet.new(), bulk_feedback: nil, bulk_errors: [])
+     |> restream_files()}
+  end
+
+  def handle_event("open_bulk", %{"action" => action}, socket)
+      when action in ["delete", "tags"] do
+    if MapSet.size(socket.assigns.selected_files) > 0 do
+      {:noreply, assign(socket, bulk_dialog: action)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("confirm_bulk_delete", _, %{assigns: %{bulk_dialog: "delete"}} = socket),
+    do: run_bulk(socket, :delete)
+
+  def handle_event(
+        "bulk_tags",
+        %{"mode" => mode, "tags" => tags},
+        %{assigns: %{bulk_dialog: "tags"}} = socket
+      )
+      when mode in ["add", "remove", "replace"] do
+    with {:ok, parsed} <- parse_tags_input(tags) do
+      action = %{"add" => :add, "remove" => :remove, "replace" => :replace}[mode]
+      run_bulk(socket, {action, parsed})
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Invalid tags. Use up to 20 tags, one per line.")}
+    end
+  end
+
+  def handle_event("retry_upload", _, socket) do
+    {:noreply,
+     put_flash(
+       socket,
+       :info,
+       "Choose or drop the failed file again, then upload. Its temporary bytes are no longer available."
+     )}
   end
 
   def handle_event("new_application", _, socket),
@@ -108,6 +244,8 @@ defmodule AppWeb.DashboardLive do
     do:
       {:noreply,
        assign(socket,
+         file_details: nil,
+         bulk_dialog: nil,
          show_create: false,
          revoking_key: nil,
          deleting_file: nil,
@@ -209,7 +347,15 @@ defmodule AppWeb.DashboardLive do
         {:noreply,
          push_patch(
            socket,
-           to: files_path(socket.assigns.selected_app.id, search, sort, tags, 1)
+           to:
+             files_path(
+               socket.assigns.selected_app.id,
+               search,
+               sort,
+               tags,
+               1,
+               socket.assigns.file_view
+             )
          )}
 
       {:error, message} ->
@@ -223,16 +369,20 @@ defmodule AppWeb.DashboardLive do
   def handle_event("upload_files", _, socket) do
     results =
       consume_uploaded_entries(socket, :documents, fn %{path: path}, entry ->
-        {:ok,
-         App.Storage.upload(
-           socket.assigns.current_user,
-           socket.assigns.selected_app.id,
-           path,
-           entry.client_name,
-           entry.client_type
-         )}
+        result =
+          App.Storage.upload(
+            socket.assigns.current_user,
+            socket.assigns.selected_app.id,
+            path,
+            entry.client_name,
+            entry.client_type
+          )
+
+        {:ok, %{name: entry.client_name, result: result}}
       end)
 
+    socket = assign(socket, upload_results: results)
+    results = Enum.map(results, & &1.result)
     failed? = Enum.any?(results, fn result -> not match?({:ok, _}, result) end)
 
     socket =
@@ -403,6 +553,8 @@ defmodule AppWeb.DashboardLive do
     end)
   end
 
+  def handle_event(_event, _params, socket), do: {:noreply, socket}
+
   def handle_async(:test_storage, {:ok, :ok}, socket),
     do:
       {:noreply,
@@ -419,6 +571,65 @@ defmodule AppWeb.DashboardLive do
          :error,
          "Storage test failed. Check endpoint, credentials, bucket and object permissions."
        )}
+
+  defp run_bulk(socket, action) do
+    a = socket.assigns
+
+    case App.Storage.FileManagement.bulk(
+           a.current_user,
+           a.selected_app.id,
+           MapSet.to_list(a.selected_files),
+           action
+         ) do
+      {:ok, result} ->
+        failed = Enum.map(result.failed, & &1.id)
+        feedback = "#{length(result.succeeded)} succeeded · #{length(failed)} failed"
+
+        errors =
+          Enum.map(result.failed, fn failure ->
+            file = Enum.find(a.files, &(&1.id == failure.id))
+
+            %{
+              name: if(file, do: file.filename, else: "File unavailable"),
+              message: bulk_error(failure.reason)
+            }
+          end)
+
+        {:noreply,
+         socket
+         |> put_flash(if(failed == [], do: :info, else: :error), feedback)
+         |> assign(
+           bulk_dialog: nil,
+           file_details: nil,
+           bulk_feedback: feedback,
+           bulk_errors: errors,
+           selected_files: MapSet.new(failed)
+         )
+         |> load_storage(sync_url: true)
+         |> load_apps()}
+
+      _ ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Unable to perform this bulk action. Check your selection and tags."
+         )}
+    end
+  end
+
+  defp bulk_error({:invalid_tags, message}) when is_binary(message), do: message
+  defp bulk_error(:not_found), do: "File no longer available in this application."
+  defp bulk_error(_), do: "Unable to finish. Check storage and retry."
+
+  defp restream_files(socket), do: stream(socket, :files, socket.assigns.files, reset: true)
+
+  defp display_variant(file),
+    do: Enum.find(file.variants, &(&1.name == "display_webp" and &1.status == "ready"))
+
+  defp upload_result({:ok, _}), do: "Uploaded"
+  defp upload_result({:error, :quota_exceeded}), do: "Account storage quota reached"
+  defp upload_result(_), do: "Upload failed · reselect the file to retry"
 
   defp load_apps(socket) do
     apps =
@@ -471,6 +682,11 @@ defmodule AppWeb.DashboardLive do
           socket
           |> assign(
             files: result.files,
+            selected_files:
+              MapSet.intersection(
+                socket.assigns.selected_files,
+                MapSet.new(Enum.map(result.files, & &1.id))
+              ),
             storage_usage: App.Storage.Quota.status_for_user(actor.id),
             file_total: result.total,
             file_page: result.page,
@@ -481,11 +697,27 @@ defmodule AppWeb.DashboardLive do
             file_tags: result.tags,
             file_prev:
               if(result.page > 1,
-                do: files_path(app_id, result.search, result.sort, result.tags, result.page - 1)
+                do:
+                  files_path(
+                    app_id,
+                    result.search,
+                    result.sort,
+                    result.tags,
+                    result.page - 1,
+                    socket.assigns.file_view
+                  )
               ),
             file_next:
               if(result.page < result.pages,
-                do: files_path(app_id, result.search, result.sort, result.tags, result.page + 1)
+                do:
+                  files_path(
+                    app_id,
+                    result.search,
+                    result.sort,
+                    result.tags,
+                    result.page + 1,
+                    socket.assigns.file_view
+                  )
               ),
             connections: App.Storage.connections(actor, app_id)
           )
@@ -493,7 +725,15 @@ defmodule AppWeb.DashboardLive do
 
         if clamped? and Keyword.get(opts, :sync_url, false) and connected?(socket) do
           push_patch(socket,
-            to: files_path(app_id, result.search, result.sort, result.tags, result.page)
+            to:
+              files_path(
+                app_id,
+                result.search,
+                result.sort,
+                result.tags,
+                result.page,
+                socket.assigns.file_view
+              )
           )
         else
           socket
@@ -576,8 +816,8 @@ defmodule AppWeb.DashboardLive do
   defp parse_tags_input(tags) when is_list(tags), do: App.Storage.validate_tags_filter(tags)
   defp parse_tags_input(_), do: {:error, "Tags must be one per line."}
 
-  defp files_path(app_id, search, sort, tags, page) do
-    params = []
+  defp files_path(app_id, search, sort, tags, page, view) do
+    params = if view == "grid", do: [{"view", "grid"}], else: []
     params = if sort != "newest", do: params ++ [{"sort", sort}], else: params
     params = if search != "", do: params ++ [{"search", search}], else: params
     params = params ++ [{"tab", "files"}]

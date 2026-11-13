@@ -1,3 +1,5 @@
+> Historical reference — superseded 2026-11-14 by the [active v2 roadmap](01-replacement-plan.md). V1 compatibility and workspace/legacy-auth requirements in this document are not planned work.
+
 # MVP delivery — 2026-11-11
 
 **Superseded auth/theme details:** On 2026-11-12, user sign-in changed to GitHub

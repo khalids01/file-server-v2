@@ -22,7 +22,11 @@ defmodule AppWeb.UI.FileUpload do
       <p :for={error <- upload_errors(@upload)} role="alert" class="text-sm text-destructive">
         {error_message(error)}
       </p>
-      <div :for={entry <- @upload.entries} class="rounded-lg border border-border p-3">
+      <div
+        :for={entry <- @upload.entries}
+        id={"upload-entry-#{entry.ref}"}
+        class="rounded-lg border border-border p-3"
+      >
         <div class="flex items-center justify-between gap-3">
           <span class="truncate text-sm">{entry.client_name}</span><.button
             type="button"
@@ -32,6 +36,9 @@ defmodule AppWeb.UI.FileUpload do
             aria-label={"Remove " <> entry.client_name}
           ><.icon name="hero-x-mark" /></.button>
         </div>
+        <p class="mt-1 text-xs text-muted-foreground" aria-live="polite">
+          {entry.progress}% · {if entry.done?, do: "Ready to store", else: "Waiting / transferring"}
+        </p>
         <div
           role="progressbar"
           aria-label={entry.client_name}

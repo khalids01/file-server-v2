@@ -91,3 +91,5 @@ Checks: `mix precommit`, `mix assets.build`, `mix ash.codegen --check`, and
 `docker compose up -d db` supplies the repository's local database on port 5434.
 
 Storage quotas and native image workers are described in [storage reliability and images](storage-reliability-images.md), including a code map and deployment requirements.
+
+File-browser components live in `lib/app_web/features/files/file_components.ex`; bounded bulk services live in `lib/app/storage/file_management.ex`, and clipboard behavior lives in `assets/js/clipboard.mjs`. See [file management](file-management.md).
