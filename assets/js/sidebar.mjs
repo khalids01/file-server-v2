@@ -7,7 +7,7 @@ export const Sidebar = {
       this.el.dataset.sidebarCollapsed = String(this.collapsed)
       this.el.dataset.sidebarOpen = String(this.mobileOpen)
       const visible = this.media.matches || this.mobileOpen
-      const sidebar = this.el.querySelector("#workspace-sidebar")
+      const sidebar = this.el.querySelector("#app-sidebar")
       if (sidebar) sidebar.inert = !visible
       const toggle = this.el.querySelector("[data-sidebar-toggle]")
       toggle?.setAttribute("aria-expanded", String(this.media.matches ? !this.collapsed : this.mobileOpen))
@@ -20,7 +20,7 @@ export const Sidebar = {
           try { window.localStorage.setItem("file-server-sidebar", this.collapsed ? "collapsed" : "expanded") } catch {}
         } else this.mobileOpen = !this.mobileOpen
         this.apply()
-      } else if (event.target.closest("[data-sidebar-close], #workspace-sidebar a")) {
+      } else if (event.target.closest("[data-sidebar-close], #app-sidebar a")) {
         this.mobileOpen = false
         this.apply()
       }

@@ -11,10 +11,10 @@ defmodule AppWeb.ApplicationApiController do
     if get_req_header(conn, "origin") != [] do
       conn |> put_status(403) |> json(%{error: "Application keys are server-side credentials"})
     else
-      case App.Workspaces.authenticate_key(bearer, "files:read") do
+      case App.Applications.authenticate_key(bearer, "files:read") do
         {:ok, %{application: app, key: key}} ->
           json(conn, %{
-            data: %{id: app.id, name: app.name, tenant_id: app.tenant_id, scopes: key.scopes},
+            data: %{id: app.id, name: app.name, scopes: key.scopes},
             storage_ready: false
           })
 

@@ -7,7 +7,7 @@ Most page UI lives in `lib/app_web/features/`. Backend rules and data live in
 lib/
   app/                          Backend: resources, permissions, business rules
     accounts/                   Users, GitHub identity, email OTP, sessions
-    workspaces/                 Tenants, memberships, applications, integration keys
+    applications/               User-owned applications and integration keys
     mailer.ex                   Swoosh mail delivery
     mailer_config.ex            SMTP configuration
   app_web/                      Browser and HTTP layer
@@ -47,12 +47,14 @@ agent/                          Replacement roadmap and implementation notes
 | Email code request or verification appearance | `lib/app_web/features/auth/otp_html/` |
 | Email code validation or GitHub account linking | `lib/app/accounts/` |
 | SMTP connection settings | `lib/app/mailer_config.ex` and `config/runtime.exs` |
+| Application settings and keys | `/dashboard/applications/:id`, using the dashboard LiveView |
+| Shared selects and dialogs | `lib/app_web/components/ui/select.ex`, `dialog.ex`, and `assets/js/controls.mjs` |
 | Dashboard pages and interactions | `lib/app_web/features/dashboard/dashboard_live.ex` and `.html.heex` |
 | Admin page and interactions | `lib/app_web/features/admin/operator_live.ex` and `.html.heex` |
-| Tenant permissions and application keys | `lib/app/workspaces/` |
+| Application ownership and API keys | `lib/app/applications/` |
 | Button or input markup | `lib/app_web/components/ui/button.ex` or `input.ex` |
 | Colors, spacing, shared component styles | `assets/css/app.css` |
-| Collapsible workspace sidebar | `lib/app_web/components/ui/sidebar.ex` and `assets/js/sidebar.mjs` |
+| Collapsible dashboard sidebar | `lib/app_web/components/ui/sidebar.ex` and `assets/js/sidebar.mjs` |
 | Shared layout and theme toggle | `lib/app_web/components/layouts.ex` |
 | URL or access requirement | `lib/app_web/router.ex` |
 

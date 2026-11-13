@@ -1,67 +1,77 @@
 defmodule AppWeb.DashboardLive do
   use AppWeb, :live_view
   require Ash.Query
-  alias App.Workspaces
-  alias App.Workspaces.{Application, ApplicationKey}
+  alias App.Applications
+  alias App.Applications.{Application, ApplicationKey}
   on_mount {AppWeb.LiveUserAuth, :live_user_required}
 
   def mount(_, _, socket) do
-    Workspaces.ensure_personal!(socket.assigns.current_user)
-
     {:ok,
      assign(socket,
        plaintext_key: nil,
        selected_app: nil,
+       revoking_key: nil,
        keys: [],
-       tenants: [],
        applications: [],
-       tenant: nil
+       show_create: false,
+       save_error: nil,
+       tab: "settings",
+       key_counts: %{}
      )}
   end
 
   def handle_params(params, _, socket) do
-    tenants = Workspaces.tenants(socket.assigns.current_user)
-    tenant = Enum.find(tenants, &(&1.id == params["tenant"])) || List.first(tenants)
-
     socket =
       socket
-      |> assign(tenants: tenants, tenant: tenant, selected_app: nil, plaintext_key: nil)
+      |> assign(selected_app: nil, plaintext_key: nil, tab: params["tab"] || "settings")
       |> load_apps()
 
-    {:noreply, socket}
+    if socket.assigns.live_action == :application do
+      case Ash.get(Application, params["id"], actor: socket.assigns.current_user) do
+        {:ok, %Application{} = app} ->
+          {:noreply, socket |> assign(selected_app: app) |> load_keys()}
+
+        _ ->
+          {:noreply,
+           socket
+           |> put_flash(:error, "Application not found")
+           |> push_navigate(to: ~p"/dashboard/applications")}
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
-  def handle_event("switch_tenant", %{"tenant" => id}, socket) do
-    {:noreply, push_patch(socket, to: workspace_path(socket.assigns.live_action, id))}
-  end
+  def handle_event("new_application", _, socket),
+    do: {:noreply, assign(socket, show_create: true, save_error: nil)}
 
-  def handle_event("create_workspace", %{"workspace" => %{"name" => name}}, socket) do
+  def handle_event("close_dialog", _, socket),
+    do: {:noreply, assign(socket, show_create: false, revoking_key: nil)}
+
+  def handle_event("update_application", %{"application" => attrs}, socket) do
     perform(socket, fn ->
-      tenant = Workspaces.create_tenant!(socket.assigns.current_user, name)
-      push_navigate(socket, to: workspace_path(:overview, tenant.id))
+      app =
+        Ash.update!(socket.assigns.selected_app, Map.take(attrs, ["name"]),
+          actor: socket.assigns.current_user
+        )
+
+      socket
+      |> assign(selected_app: app)
+      |> put_flash(:info, "Application updated")
+      |> load_apps()
     end)
   end
 
   def handle_event("create_application", %{"application" => attrs}, socket) do
     perform(socket, fn ->
       Ash.create!(Application, Map.take(attrs, ["name", "slug"]),
-        actor: socket.assigns.current_user,
-        tenant: socket.assigns.tenant.id
+        actor: socket.assigns.current_user
       )
 
-      socket |> put_flash(:info, "Application created") |> load_apps()
-    end)
-  end
-
-  def handle_event("select_app", %{"id" => id}, socket) do
-    perform(socket, fn ->
-      app =
-        Ash.get!(Application, id,
-          actor: socket.assigns.current_user,
-          tenant: socket.assigns.tenant.id
-        )
-
-      socket |> assign(selected_app: app, plaintext_key: nil) |> load_keys()
+      socket
+      |> assign(show_create: false)
+      |> put_flash(:info, "Application created")
+      |> load_apps()
     end)
   end
 
@@ -76,9 +86,8 @@ defmodule AppWeb.DashboardLive do
         end
 
       {_key, raw} =
-        Workspaces.issue_key!(
+        Applications.issue_key!(
           socket.assigns.current_user,
-          socket.assigns.tenant.id,
           socket.assigns.selected_app.id,
           attrs["name"],
           scopes
@@ -93,19 +102,22 @@ defmodule AppWeb.DashboardLive do
 
   def handle_event("revoke_key", %{"id" => id}, socket) do
     perform(socket, fn ->
-      key =
-        Ash.get!(ApplicationKey, id,
-          actor: socket.assigns.current_user,
-          tenant: socket.assigns.tenant.id
-        )
+      key = Ash.get!(ApplicationKey, id, actor: socket.assigns.current_user)
+      assign(socket, :revoking_key, key)
+    end)
+  end
 
-      Ash.update!(key, %{},
+  def handle_event("confirm_revoke_key", _, socket) do
+    perform(socket, fn ->
+      Ash.update!(socket.assigns.revoking_key, %{},
         action: :revoke,
-        actor: socket.assigns.current_user,
-        tenant: socket.assigns.tenant.id
+        actor: socket.assigns.current_user
       )
 
-      socket |> assign(:plaintext_key, nil) |> put_flash(:info, "Key revoked") |> load_keys()
+      socket
+      |> assign(plaintext_key: nil, revoking_key: nil)
+      |> put_flash(:info, "Key revoked")
+      |> load_keys()
     end)
   end
 
@@ -126,9 +138,16 @@ defmodule AppWeb.DashboardLive do
       Application
       |> Ash.Query.sort(created_at: :desc)
       |> Ash.Query.limit(100)
-      |> Ash.read!(actor: socket.assigns.current_user, tenant: socket.assigns.tenant.id)
+      |> Ash.read!(actor: socket.assigns.current_user)
 
-    socket |> assign(:applications, apps) |> stream(:applications, apps, reset: true)
+    counts =
+      App.Applications.ApplicationKey
+      |> Ash.read!(actor: socket.assigns.current_user)
+      |> Enum.frequencies_by(& &1.application_id)
+
+    socket
+    |> assign(applications: apps, key_counts: counts)
+    |> stream(:applications, apps, reset: true)
   end
 
   defp load_keys(socket) do
@@ -139,7 +158,7 @@ defmodule AppWeb.DashboardLive do
       |> Ash.Query.filter(application_id == ^id)
       |> Ash.Query.sort(created_at: :desc)
       |> Ash.Query.limit(100)
-      |> Ash.read!(actor: socket.assigns.current_user, tenant: socket.assigns.tenant.id)
+      |> Ash.read!(actor: socket.assigns.current_user)
 
     socket |> assign(:keys, keys) |> stream(:keys, keys, reset: true)
   end
@@ -149,19 +168,9 @@ defmodule AppWeb.DashboardLive do
   rescue
     _error in [Ash.Error.Invalid, Ash.Error.Forbidden, Ash.Error.Unknown] ->
       {:noreply,
-       put_flash(socket, :error, "Unable to save. Check your input and workspace permissions.")}
-  end
-
-  defp workspace_path(action, tenant) do
-    base =
-      case action do
-        :applications -> "/dashboard/applications"
-        :settings -> "/dashboard/settings"
-        :profile -> "/dashboard/profile"
-        _ -> "/dashboard"
-      end
-
-    base <> "?tenant=" <> tenant
+       socket
+       |> assign(:save_error, "Unable to save. Check your input and application permissions.")
+       |> put_flash(:error, "Unable to save. Check your input and application permissions.")}
   end
 
   defp section(action),
@@ -169,7 +178,7 @@ defmodule AppWeb.DashboardLive do
       %{
         overview: "Overview",
         applications: "Applications",
-        settings: "Workspace settings",
-        profile: "Your profile"
+        application: "Applications",
+        profile: "Profile"
       }[action]
 end

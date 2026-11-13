@@ -41,7 +41,7 @@ defmodule AppWeb.UI.UserMenu do
           navigate="/dashboard/profile"
           class="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent focus-visible:bg-accent"
         >
-          <.icon name="hero-user-circle" />Your profile
+          <.icon name="hero-user-circle" />Profile
         </.link>
         <.link
           :if={@user.operator}

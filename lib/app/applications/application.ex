@@ -1,12 +1,12 @@
-defmodule App.Workspaces.Application do
+defmodule App.Applications.Application do
   use Ash.Resource,
     otp_app: :app,
-    domain: App.Workspaces,
+    domain: App.Applications,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer]
 
   postgres do
-    table "workspace_applications"
+    table "applications"
     repo App.Repo
   end
 
@@ -16,6 +16,7 @@ defmodule App.Workspaces.Application do
     create :create do
       primary? true
       accept [:name, :slug]
+      change relate_actor(:user)
     end
 
     update :update do
@@ -26,22 +27,18 @@ defmodule App.Workspaces.Application do
 
   policies do
     policy action_type(:read) do
-      authorize_if {App.Checks.TenantAccess, admin?: true}
+      forbid_unless App.Checks.ActiveActor
+      authorize_if expr(user_id == ^actor(:id))
     end
 
     policy action_type([:create, :update]) do
-      authorize_if {App.Checks.TenantAccess, admin?: true}
+      forbid_unless App.Checks.ActiveActor
+      authorize_if expr(user_id == ^actor(:id))
     end
-  end
-
-  multitenancy do
-    strategy :attribute
-    attribute :tenant_id
   end
 
   attributes do
     uuid_primary_key :id
-    attribute :tenant_id, :uuid, allow_nil?: false
 
     attribute :name, :string do
       allow_nil? false
@@ -57,10 +54,10 @@ defmodule App.Workspaces.Application do
   end
 
   relationships do
-    belongs_to :tenant, App.Workspaces.Tenant, define_attribute?: false
+    belongs_to :user, App.Accounts.User, allow_nil?: false
   end
 
   identities do
-    identity :unique_slug, [:slug]
+    identity :unique_slug, [:user_id, :slug]
   end
 end

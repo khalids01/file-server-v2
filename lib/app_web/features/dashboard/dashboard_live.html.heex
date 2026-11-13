@@ -1,128 +1,152 @@
-<Layouts.app
-  flash={@flash}
-  current_user={@current_user}
-  section={section(@live_action)}
-  tenant_id={@tenant.id}
->
-  <div class="mb-9 flex flex-wrap items-end justify-between gap-5">
+<Layouts.app flash={@flash} current_user={@current_user} section={section(@live_action)}>
+  <div id="dashboard-heading" class="mb-8 flex flex-wrap items-center justify-between gap-4">
     <div>
-      <p class="mb-2 text-xs font-semibold uppercase tracking-widest text-foreground">
-        {@tenant.name}
-      </p><h1 class="text-3xl font-semibold tracking-tight">{section(@live_action)}</h1>
+      <h1 class="text-3xl font-bold tracking-tight">
+        {if @selected_app, do: @selected_app.name, else: section(@live_action)}
+      </h1>
+      <p class="mt-2 text-sm text-muted-foreground">
+        {case @live_action do
+          :applications -> "Manage your file storage applications and their settings"
+          :application -> "Manage this application's settings and API access"
+          :profile -> "Manage your personal information and account"
+          _ -> "Your applications and account at a glance"
+        end}
+      </p>
     </div>
-    <.form for={to_form(%{})} id="tenant-switcher" phx-change="switch_tenant" class="min-w-56">
-      <.input
-        name="tenant"
-        type="select"
-        label="Active workspace"
-        value={@tenant.id}
-        options={Enum.map(@tenants, &{&1.name, &1.id})}
-      />
-    </.form>
+    <.button
+      :if={@live_action in [:overview, :applications]}
+      id="new-application"
+      phx-click="new_application"
+    >
+      <.icon name="hero-plus" />New Application
+    </.button>
+    <.button :if={@selected_app} navigate={~p"/dashboard/applications"} variant="outline">Back to applications</.button>
   </div>
 
-  <section :if={@live_action == :overview}>
-    <div class="grid gap-4 sm:grid-cols-3">
-      <div
-        :for={
-          {title, value, icon} <- [
-            {"Your workspaces", length(@tenants), "hero-building-office-2"},
-            {"Applications in view", length(@applications), "hero-command-line"},
-            {"Account status", "Verified", "hero-check-badge"}
-          ]
-        }
-        class="rounded-xl border border-border bg-card p-6"
-      >
-        <div class="flex items-center justify-between text-sm text-muted-foreground">
-          {title}<.icon name={icon} class="size-5 text-muted-foreground" />
-        </div><p class="mt-5 text-3xl font-semibold tracking-tight">{value}</p>
-      </div>
-    </div>
-    <div class="mt-7 grid gap-6 lg:grid-cols-2">
-      <div class="rounded-xl border border-border bg-card p-7">
-        <span class="mb-5 flex size-12 items-center justify-center rounded-xl bg-accent text-foreground"><.icon
-          name="hero-rocket-launch"
-          class="size-6"
-        /></span><h2 class="text-xl font-semibold">Build your first connection.</h2><p class="mt-3 text-sm leading-7 text-muted-foreground">
-          Create an application, issue an access key, and test its tenant-bound identity endpoint. Your keys stay scoped to this workspace.
-        </p><.link
-          navigate={workspace_path(:applications, @tenant.id)}
-          class="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-foreground"
-        >Manage applications <.icon name="hero-arrow-right" class="size-4" /></.link>
-      </div>
-      <div class="rounded-xl border border-dashed border-border p-7">
-        <p class="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          Next on the roadmap
-        </p><h2 class="mt-5 text-xl font-semibold">A home for your files.</h2><p class="mt-3 text-sm leading-7 text-muted-foreground">
-          Local & S3 storage, file browsing, transfers, backups, and v1 migration are not implemented in this foundation release. There are no demo storage statistics here.
+  <section :if={@live_action == :overview} class="space-y-6">
+    <div class="grid gap-6 sm:grid-cols-2">
+      <.card class="p-6">
+        <p class="text-sm text-muted-foreground">Applications</p><p class="mt-4 text-3xl font-semibold">
+          {length(@applications)}
         </p>
-      </div>
+      </.card>
+      <.card class="p-6">
+        <p class="text-sm text-muted-foreground">API keys</p><p class="mt-4 text-3xl font-semibold">
+          {Enum.sum(Map.values(@key_counts))}
+        </p>
+      </.card>
+    </div>
+    <.card class="p-7">
+      <h2 class="text-lg font-semibold">Everything starts with an application</h2><p class="mt-2 text-sm text-muted-foreground">
+        Organize your projects and manage their API keys in one place.
+      </p><.button navigate={~p"/dashboard/applications"} variant="outline" class="mt-5">Manage applications</.button>
+    </.card>
+  </section>
+
+  <section :if={@live_action == :applications}>
+    <.card :if={@applications == []} id="applications-empty" class="py-12 text-center">
+      <.icon name="hero-folder-open" class="mx-auto mb-4 size-12 text-muted-foreground" />
+      <h2 class="mb-2 text-lg font-semibold">No applications yet</h2>
+      <p class="mb-6 text-sm text-muted-foreground">
+        Create your first application to start organizing and managing your files.
+      </p>
+      <.button phx-click="new_application"><.icon name="hero-plus" />Create First Application</.button>
+    </.card>
+    <div
+      id="applications"
+      phx-update="stream"
+      class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3"
+    >
+      <.card
+        :for={{dom_id, app} <- @streams.applications}
+        id={dom_id}
+        class="p-6 transition-shadow hover:shadow-md"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <span class="flex size-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400"><.icon
+            name="hero-folder-open"
+            class="size-5"
+          /></span>
+          <.badge>{app.slug}</.badge>
+        </div>
+        <h2 class="mt-4 truncate text-xl font-semibold">{app.name}</h2>
+        <div class="my-4 flex justify-between gap-2 text-sm text-muted-foreground">
+          <span title="File storage is not implemented yet">Files coming soon</span><span>{Map.get(
+            @key_counts,
+            app.id,
+            0
+          )} API keys</span>
+        </div>
+        <div class="flex gap-2">
+          <.button
+            navigate={~p"/dashboard/applications/#{app.id}"}
+            variant="outline"
+            class="flex-1"
+          ><.icon name="hero-cog-6-tooth" />Manage</.button>
+          <.button
+            navigate={~p"/dashboard/applications/#{app.id}?tab=keys"}
+            variant="outline"
+            aria-label={"API keys for " <> app.name}
+            title="API keys"
+          ><.icon name="hero-key" /></.button>
+          <.button
+            navigate={~p"/dashboard/applications/#{app.id}?tab=files"}
+            variant="outline"
+            aria-label={"Files for " <> app.name}
+            title="Files"
+          ><.icon name="hero-arrow-up-tray" /></.button>
+        </div>
+      </.card>
     </div>
   </section>
 
-  <section :if={@live_action == :applications} class="space-y-7">
-    <div class="rounded-xl border border-border bg-card p-6">
-      <h2 class="mb-5 text-lg font-semibold">Create an application</h2>
+  <section :if={@selected_app} class="space-y-6">
+    <nav
+      class="flex gap-1 rounded-lg border border-border bg-muted p-1"
+      aria-label="Application sections"
+    >
+      <.button
+        :for={
+          {title, tab} <- [{"Settings", "settings"}, {"API keys", "keys"}, {"Files", "files"}]
+        }
+        patch={~p"/dashboard/applications/#{@selected_app.id}?tab=#{tab}"}
+        variant={if @tab == tab, do: "secondary", else: "ghost"}
+        aria-current={if @tab == tab, do: "page"}
+      >{title}</.button>
+    </nav>
+    <.card :if={@tab not in ["keys", "files"]} class="p-7">
+      <h2 class="mb-5 text-lg font-semibold">Application settings</h2>
       <.form
         for={to_form(%{}, as: :application)}
-        id="create-application"
-        phx-submit="create_application"
-        class="grid items-end gap-4 sm:grid-cols-[1fr_1fr_auto]"
+        id="application-settings"
+        phx-submit="update_application"
+        class="space-y-4"
       >
         <.input
           name="application[name]"
-          label="Name"
+          label="Application name"
+          value={@selected_app.name}
           required
           minlength="2"
           maxlength="80"
-          placeholder="My project"
         />
-        <.input
-          name="application[slug]"
-          label="Slug"
-          required
-          pattern="[a-z0-9]+(-[a-z0-9]+)*"
-          minlength="2"
-          maxlength="60"
-          placeholder="my-project"
-        />
-        <.button class="mb-2">Create application</.button>
+        <.input name="slug" label="Slug" value={@selected_app.slug} readonly />
+        <.button>Save changes</.button>
       </.form>
-    </div>
-    <div id="applications" phx-update="stream" class="space-y-3">
-      <p
-        id="applications-empty"
-        class="hidden rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground only:block"
-      >
-        No applications yet. Give your next project a workspace.
+      <p class="mt-5 text-sm text-muted-foreground">
+        Storage configuration will be available when file storage is implemented.
       </p>
-      <div
-        :for={{dom_id, app} <- @streams.applications}
-        id={dom_id}
-        class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5"
-      >
-        <div class="flex items-center gap-4">
-          <span class="flex size-11 items-center justify-center rounded-xl bg-muted"><.icon
-            name="hero-code-bracket"
-            class="size-5 text-muted-foreground"
-          /></span><div>
-            <h3 class="font-semibold">{app.name}</h3><p class="mt-1 text-xs text-muted-foreground">
-              {app.slug}
-            </p>
-          </div>
-        </div>
-        <.button
-          phx-click="select_app"
-          phx-value-id={app.id}
-        >Manage keys</.button>
-      </div>
-    </div>
-    <div
-      :if={@selected_app}
-      id="application-keys"
-      class="rounded-xl border border-border bg-card p-6"
-    >
-      <h2 class="text-lg font-semibold">Access keys · {@selected_app.name}</h2><p class="mt-2 text-sm text-muted-foreground">
+    </.card>
+    <.card :if={@tab == "files"} class="p-12 text-center">
+      <.icon name="hero-folder-open" class="mx-auto mb-4 size-10 text-muted-foreground" /><h2 class="text-lg font-semibold">
+        File storage is coming next
+      </h2><p class="mt-2 text-sm text-muted-foreground">
+        Uploads, file browsing, and storage settings are not available yet.
+      </p>
+    </.card>
+    <.card :if={@tab == "keys"} class="p-7">
+      <h2 class="text-lg font-semibold">API keys</h2>
+      <p class="mt-2 text-sm text-muted-foreground">
         Server-side credentials. Keys expire after 30 days. Maximum 100 recent keys shown.
       </p>
       <.form
@@ -180,7 +204,6 @@
             variant="outline"
             phx-click="revoke_key"
             phx-value-id={key.id}
-            data-confirm="Revoke this key? Integrations using it will stop working."
           >Revoke</.button>
         </div>
       </div>
@@ -188,44 +211,13 @@
         Test with <code>GET /api/v2/application</code>
         and <code>Authorization: Bearer &lt;key&gt;</code>. File endpoints will arrive with the storage milestone.
       </p>
-    </div>
+    </.card>
   </section>
 
-  <section :if={@live_action == :settings} class="max-w-2xl space-y-6">
-    <div class="rounded-xl border border-border bg-card p-7">
-      <h2 class="text-lg font-semibold">Current workspace</h2><dl class="mt-5 space-y-3 text-sm">
-        <div class="flex justify-between gap-4">
-          <dt class="text-muted-foreground">Name</dt><dd>{@tenant.name}</dd>
-        </div><div class="flex flex-wrap justify-between gap-4">
-          <dt class="text-muted-foreground">Workspace ID</dt><dd class="font-mono text-xs">
-            {@tenant.id}
-          </dd>
-        </div>
-      </dl><p class="mt-6 text-xs leading-6 text-muted-foreground">
-        Member invitations, granular application grants, and storage settings are planned. This MVP provides owner-isolated workspaces.
-      </p>
-    </div>
-    <div class="rounded-xl border border-border bg-card p-7">
-      <h2 class="mb-5 text-lg font-semibold">Create another workspace</h2><.form
-        for={to_form(%{}, as: :workspace)}
-        id="create-workspace"
-        phx-submit="create_workspace"
-        class="space-y-4"
-      >
-        <.input
-          name="workspace[name]"
-          label="Workspace name"
-          required
-          minlength="2"
-          maxlength="80"
-        /><.button>Create workspace</.button>
-      </.form>
-    </div>
-  </section>
-
-  <section :if={@live_action == :profile} class="max-w-2xl space-y-6">
-    <div class="rounded-xl border border-border bg-card p-7">
-      <h2 class="mb-5 text-lg font-semibold">Your profile</h2><.form
+  <section :if={@live_action == :profile} class="w-full space-y-6">
+    <.card class="p-7">
+      <h2 class="mb-5 text-lg font-semibold">Profile</h2>
+      <.form
         for={to_form(%{"name" => @current_user.name}, as: :profile)}
         id="profile-form"
         phx-submit="update_profile"
@@ -236,18 +228,67 @@
           label="Display name"
           value={@current_user.name}
           maxlength="80"
-        /><p class="text-sm text-muted-foreground">
-          {to_string(@current_user.email)} · Email verified
-        </p><.button>Save profile</.button>
+        />
+        <p class="text-sm text-muted-foreground">{@current_user.email} · Email verified</p><.button>Save profile</.button>
       </.form>
-    </div>
-    <div class="rounded-xl border border-border bg-card p-7">
-      <h2 class="text-lg font-semibold">Account security</h2><p class="mt-3 text-sm leading-7 text-muted-foreground">
-        Sign in with GitHub or a one-time code sent to your email. Passwords and magic links are disabled. GitHub must return a verified primary email.
-      </p><.link
-        href="/sign-in"
-        class="mt-5 inline-block text-sm font-semibold text-foreground"
-      >Manage sign-in →</.link>
-    </div>
+    </.card>
+    <.card class="p-7">
+      <h2 class="text-lg font-semibold">Account security</h2><p class="mt-3 text-sm text-muted-foreground">
+        Sign in with GitHub or a one-time code sent to your email.
+      </p><.button href="/sign-in" variant="outline" class="mt-5">Manage sign-in</.button>
+    </.card>
   </section>
+
+  <.dialog
+    :if={@show_create}
+    id="create-application-dialog"
+    title="Create New Application"
+    description="Create a new application to organize your files and manage API access."
+  >
+    <.form
+      for={to_form(%{}, as: :application)}
+      id="create-application"
+      phx-submit="create_application"
+      class="space-y-4"
+    >
+      <p :if={@save_error} role="alert" class="text-sm text-destructive">{@save_error}</p>
+      <.input
+        name="application[name]"
+        label="Application Name"
+        placeholder="e.g., My Website, Mobile App"
+        required
+        minlength="2"
+        maxlength="80"
+      />
+      <.input
+        name="application[slug]"
+        label="Slug (URL identifier)"
+        placeholder="e.g., my-website, mobile-app"
+        required
+        minlength="2"
+        maxlength="60"
+        pattern="[a-z0-9]+(-[a-z0-9]+)*"
+      />
+      <p class="text-xs text-muted-foreground">
+        Used in API URLs and file paths. Only lowercase letters, numbers, and hyphens.
+      </p>
+      <div class="flex justify-end gap-2 pt-3">
+        <.button type="button" phx-click="close_dialog" variant="outline">Cancel</.button><.button>Create Application</.button>
+      </div>
+    </.form>
+  </.dialog>
+  <.dialog
+    :if={@revoking_key}
+    id="revoke-key-dialog"
+    title="Revoke API key?"
+    description="Integrations using this key will stop working. You can create a new key later."
+  >
+    <div class="flex justify-end gap-2">
+      <.button variant="outline" phx-click="close_dialog">Cancel</.button><.button
+        id="confirm-revoke-key"
+        variant="destructive"
+        phx-click="confirm_revoke_key"
+      >Revoke key</.button>
+    </div>
+  </.dialog>
 </Layouts.app>

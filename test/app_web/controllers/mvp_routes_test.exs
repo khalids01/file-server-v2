@@ -27,7 +27,7 @@ defmodule AppWeb.MvpRoutesTest do
     conn = conn |> recycle() |> post("/sign-in/otp/verify", %{code: code})
     assert redirected_to(conn) == "/dashboard"
     assert {:ok, view, _} = live(recycle(conn), "/dashboard")
-    assert has_element?(view, "#tenant-switcher")
+    assert has_element?(view, "#dashboard-heading")
     assert {:error, {:redirect, %{to: "/sign-in"}}} = live(recycle(conn), "/dashboard/admin")
   end
 
@@ -66,15 +66,11 @@ defmodule AppWeb.MvpRoutesTest do
     conn: conn
   } do
     owner = user("http-key@example.com")
-    tenant = App.Workspaces.ensure_personal!(owner)
 
     app =
-      Ash.create!(App.Workspaces.Application, %{name: "API app", slug: "api-app"},
-        actor: owner,
-        tenant: tenant.id
-      )
+      Ash.create!(App.Applications.Application, %{name: "API app", slug: "api-app"}, actor: owner)
 
-    {key, raw} = App.Workspaces.issue_key!(owner, tenant.id, app.id, "API key", ["files:read"])
+    {key, raw} = App.Applications.issue_key!(owner, app.id, "API key", ["files:read"])
 
     response =
       conn
@@ -96,7 +92,7 @@ defmodule AppWeb.MvpRoutesTest do
     |> get("/api/json/users")
     |> response(401)
 
-    Ash.update!(key, %{}, action: :revoke, actor: owner, tenant: tenant.id)
+    Ash.update!(key, %{}, action: :revoke, actor: owner)
 
     conn
     |> put_req_header("authorization", "Bearer " <> raw)
@@ -112,6 +108,7 @@ defmodule AppWeb.MvpRoutesTest do
       |> Ash.update!(%{}, action: :mark_operator, authorize?: false)
 
     assert {:ok, view, _} = live(signed_in(conn, member), "/dashboard/applications")
+    view |> element("#new-application") |> render_click()
     Ash.update!(member, %{}, action: :ban, actor: operator)
 
     view
@@ -126,20 +123,25 @@ defmodule AppWeb.MvpRoutesTest do
     conn = signed_in(conn, user)
     assert {:ok, view, _} = live(conn, "/dashboard/applications")
 
+    view |> element("#new-application") |> render_click()
+
     view
     |> form("#create-application", application: %{name: "Test app", slug: "test-app"})
     |> render_submit()
 
-    assert has_element?(view, "#applications button", "Manage keys")
-    view |> element("#applications button", "Manage keys") |> render_click()
+    assert has_element?(view, "#applications a", "Manage")
+    [app] = App.Applications.applications(user)
+    {:ok, view, _} = live(conn, "/dashboard/applications/#{app.id}?tab=keys")
     view |> form("#issue-key", key: %{name: "Test key", access: "read"}) |> render_submit()
     assert has_element?(view, "#new-api-key code")
     view |> element("#keys button", "Revoke") |> render_click()
+    view |> element("#confirm-revoke-key") |> render_click()
     refute has_element?(view, "#keys button", "Revoke")
     operator = Ash.update!(user, %{}, action: :mark_operator, authorize?: false)
     assert {:ok, admin, _} = live(signed_in(build_conn(), operator), "/dashboard/admin")
     assert has_element?(admin, "#toggle-signup")
     admin |> element("#toggle-signup") |> render_click()
+    admin |> element("#confirm-operator-action") |> render_click()
     refute App.Platform.signup_enabled?()
   end
 end

@@ -18,39 +18,6 @@
       "generated?": false,
       "precision": null,
       "primary_key?": false,
-      "references": {
-        "deferrable": false,
-        "destination_attribute": "id",
-        "destination_attribute_default": null,
-        "destination_attribute_generated": null,
-        "index?": false,
-        "index_where": null,
-        "match_tenant?": false,
-        "match_type": null,
-        "match_with": null,
-        "multitenancy": {
-          "attribute": null,
-          "global": null,
-          "strategy": null
-        },
-        "name": "workspace_api_keys_tenant_id_fkey",
-        "on_delete": null,
-        "on_update": null,
-        "primary_key?": true,
-        "schema": "public",
-        "table": "workspaces"
-      },
-      "scale": null,
-      "size": null,
-      "source": "tenant_id",
-      "type": "uuid"
-    },
-    {
-      "allow_nil?": false,
-      "default": "nil",
-      "generated?": false,
-      "precision": null,
-      "primary_key?": false,
       "references": null,
       "scale": null,
       "size": null,
@@ -149,16 +116,16 @@
         "match_type": null,
         "match_with": null,
         "multitenancy": {
-          "attribute": "tenant_id",
-          "global": false,
-          "strategy": "attribute"
+          "attribute": null,
+          "global": null,
+          "strategy": null
         },
-        "name": "workspace_api_keys_application_id_fkey",
+        "name": "application_keys_application_id_fkey",
         "on_delete": null,
         "on_update": null,
         "primary_key?": true,
         "schema": "public",
-        "table": "workspace_applications"
+        "table": "applications"
       },
       "scale": null,
       "size": null,
@@ -186,7 +153,7 @@
           "global": null,
           "strategy": null
         },
-        "name": "workspace_api_keys_user_id_fkey",
+        "name": "application_keys_user_id_fkey",
         "on_delete": null,
         "on_update": null,
         "primary_key?": true,
@@ -205,12 +172,12 @@
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "2CF2D213D9C90D46E2AE60C0BD7FF375242E75CBC0F608116287301E00DACFDA",
+  "hash": "D6B077FD3009680C37865E026CC9596A4CFE397400CFFB41A19DE5EE151F4607",
   "identities": [
     {
-      "all_tenants?": true,
+      "all_tenants?": false,
       "base_filter": null,
-      "index_name": "workspace_api_keys_unique_key_index",
+      "index_name": "application_keys_unique_key_index",
       "keys": [
         {
           "type": "atom",
@@ -223,12 +190,12 @@
     }
   ],
   "multitenancy": {
-    "attribute": "tenant_id",
-    "global": true,
-    "strategy": "attribute"
+    "attribute": null,
+    "global": null,
+    "strategy": null
   },
   "repo": "Elixir.App.Repo",
   "schema": null,
-  "table": "workspace_api_keys",
+  "table": "application_keys",
   "temporal": null
 }

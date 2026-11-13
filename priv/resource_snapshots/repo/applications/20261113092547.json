@@ -18,32 +18,11 @@
       "generated?": false,
       "precision": null,
       "primary_key?": false,
-      "references": {
-        "deferrable": false,
-        "destination_attribute": "id",
-        "destination_attribute_default": null,
-        "destination_attribute_generated": null,
-        "index?": false,
-        "index_where": null,
-        "match_tenant?": false,
-        "match_type": null,
-        "match_with": null,
-        "multitenancy": {
-          "attribute": null,
-          "global": null,
-          "strategy": null
-        },
-        "name": "workspace_memberships_tenant_id_fkey",
-        "on_delete": null,
-        "on_update": null,
-        "primary_key?": true,
-        "schema": "public",
-        "table": "workspaces"
-      },
+      "references": null,
       "scale": null,
       "size": null,
-      "source": "tenant_id",
-      "type": "uuid"
+      "source": "name",
+      "type": "text"
     },
     {
       "allow_nil?": false,
@@ -54,8 +33,20 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "role",
+      "source": "slug",
       "type": "text"
+    },
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"(now() AT TIME ZONE 'utc')\")",
+      "generated?": false,
+      "precision": null,
+      "primary_key?": false,
+      "references": null,
+      "scale": null,
+      "size": null,
+      "source": "created_at",
+      "type": "utc_datetime_usec"
     },
     {
       "allow_nil?": false,
@@ -78,7 +69,7 @@
           "global": null,
           "strategy": null
         },
-        "name": "workspace_memberships_user_id_fkey",
+        "name": "applications_user_id_fkey",
         "on_delete": null,
         "on_update": null,
         "primary_key?": true,
@@ -97,30 +88,34 @@
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "5EAEF4AB49F30B4E8AD64A94074CDAF10AB2B4D681994F6511A35C23A4F42E81",
+  "hash": "7ADF9FBE34DD19F36B6144E94D1EF80C4DE0B5BD06DCBF098D70583A97397613",
   "identities": [
     {
       "all_tenants?": false,
       "base_filter": null,
-      "index_name": "workspace_memberships_unique_member_index",
+      "index_name": "applications_unique_slug_index",
       "keys": [
         {
           "type": "atom",
           "value": "user_id"
+        },
+        {
+          "type": "atom",
+          "value": "slug"
         }
       ],
-      "name": "unique_member",
+      "name": "unique_slug",
       "nils_distinct?": true,
       "where": null
     }
   ],
   "multitenancy": {
-    "attribute": "tenant_id",
-    "global": false,
-    "strategy": "attribute"
+    "attribute": null,
+    "global": null,
+    "strategy": null
   },
   "repo": "Elixir.App.Repo",
   "schema": null,
-  "table": "workspace_memberships",
+  "table": "applications",
   "temporal": null
 }

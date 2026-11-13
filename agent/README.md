@@ -1,3 +1,5 @@
+> Current architecture: User → Applications → Files/storage settings/API keys. Workspaces and memberships have been removed; older roadmap references below are historical. File storage remains planned.
+
 # App v2 replacement planning
 
 Prepared 2026-11-11. Status: **owner-workspace MVP implemented; full replacement still in progress**.

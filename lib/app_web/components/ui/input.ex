@@ -15,7 +15,7 @@ defmodule AppWeb.UI.Input do
 
   This function accepts all HTML input types, considering that:
 
-    * You may also set `type="select"` to render a `<select>` tag
+    * You may also set `type="select"` to render the shared custom select
 
     * `type="checkbox"` is used exclusively to render boolean values
 
@@ -123,23 +123,17 @@ defmodule AppWeb.UI.Input do
   end
 
   def input(%{type: "select"} = assigns) do
+    assigns = assign(assigns, :id, assigns.id || "select-" <> to_string(assigns.name))
+
     ~H"""
-    <div class="grid gap-1.5 mb-2">
-      <label for={@id}>
-        <span :if={@label} class="ui-label">{@label}</span>
-        <select
-          id={@id}
-          name={@name}
-          class={[@class || "ui-input", @errors != [] && (@error_class || "ui-input-error")]}
-          multiple={@multiple}
-          {@rest}
-        >
-          <option :if={@prompt} value="">{@prompt}</option>
-          {Phoenix.HTML.Form.options_for_select(@options, @value)}
-        </select>
-      </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
-    </div>
+    <AppWeb.UI.Select.select
+      id={@id}
+      name={@name}
+      label={@label}
+      options={@options}
+      value={@value}
+      prompt={@prompt}
+    />
     """
   end
 

@@ -1,18 +1,17 @@
 defmodule AppWeb.UI.Sidebar do
-  @moduledoc "Workspace navigation with desktop icon collapse and a mobile drawer."
+  @moduledoc "Application navigation with desktop icon collapse and a mobile drawer."
   use Phoenix.Component
   import AppWeb.UI.Icon
+  import AppWeb.UI.Button
 
   attr :current_user, :any, default: nil
   attr :section, :string, required: true
-  attr :tenant_id, :string, default: nil
 
   def sidebar(assigns) do
     items = [
       {"Overview", "/dashboard", "hero-squares-2x2"},
       {"Applications", "/dashboard/applications", "hero-command-line"},
-      {"Workspace settings", "/dashboard/settings", "hero-cog-6-tooth"},
-      {"Your profile", "/dashboard/profile", "hero-user-circle"}
+      {"Profile", "/dashboard/profile", "hero-user-circle"}
     ]
 
     items =
@@ -23,19 +22,20 @@ defmodule AppWeb.UI.Sidebar do
     assigns = assign(assigns, :items, items)
 
     ~H"""
-    <button
+    <.button
+      variant="ghost"
       type="button"
       data-sidebar-close
       class="sidebar-backdrop"
       aria-label="Close sidebar"
       tabindex="-1"
-    />
-    <aside id="workspace-sidebar" class="workspace-sidebar" aria-label="Workspace sidebar">
-      <p class="sidebar-heading sidebar-label">Workspace</p>
-      <nav class="flex flex-col gap-1" aria-label="Workspace navigation">
+    ><span class="sr-only">Close sidebar</span></.button>
+    <aside id="app-sidebar" class="app-sidebar" aria-label="Application sidebar">
+      <p class="sidebar-heading sidebar-label">Dashboard</p>
+      <nav class="flex flex-col gap-1" aria-label="Application navigation">
         <.link
           :for={{label, path, icon} <- @items}
-          navigate={path <> if(@tenant_id, do: "?tenant=" <> @tenant_id, else: "")}
+          navigate={path}
           title={label}
           aria-label={label}
           aria-current={if @section == label, do: "page"}
@@ -47,9 +47,28 @@ defmodule AppWeb.UI.Sidebar do
       </nav>
       <div class="sidebar-footer sidebar-label">
         <strong class="mb-1 block font-medium text-foreground">Your infrastructure.</strong>
-        Authentication and workspaces are ready. File storage is coming next.
+        Your applications, your keys. File storage is coming next.
       </div>
     </aside>
+    """
+  end
+
+  def sidebar_icon(assigns) do
+    ~H"""
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.7"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="3" width="18" height="18" rx="4" /><path d="M9 3v18" />
+    </svg>
     """
   end
 end

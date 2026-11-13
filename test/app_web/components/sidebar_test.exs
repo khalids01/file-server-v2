@@ -2,18 +2,17 @@ defmodule AppWeb.UI.SidebarTest do
   use ExUnit.Case, async: true
   import Phoenix.LiveViewTest
 
-  test "navigation keeps tenant context, marks the active page and exposes labels for icons" do
+  test "navigation marks the active page and exposes labels for icons" do
     doc =
       render_component(&AppWeb.UI.Sidebar.sidebar/1,
-        section: "Your profile",
-        tenant_id: "workspace-123"
+        section: "Profile"
       )
       |> LazyHTML.from_fragment()
 
     assert [_] =
              LazyHTML.query(
                doc,
-               "#workspace-sidebar a[href='/dashboard/profile?tenant=workspace-123'][aria-current='page'][aria-label='Your profile']"
+               "#app-sidebar a[href='/dashboard/profile'][aria-current='page'][aria-label='Profile']"
              )
              |> LazyHTML.to_tree()
 

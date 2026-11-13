@@ -14,8 +14,8 @@
       </p>
     </div><.button
       id="toggle-signup"
-      phx-click="toggle_signup"
-      data-confirm="Change registration policy for all sign-in methods?"
+      phx-click="request_action"
+      phx-value-action="toggle_signup"
     >{if @signup_enabled, do: "Close registration", else: "Open registration"}</.button>
   </div>
   <div class="rounded-xl border border-border bg-card p-6">
@@ -40,9 +40,9 @@
         </div><.button
           :if={user.id != @current_user.id}
           variant="outline"
-          phx-click={if user.banned, do: "unban", else: "ban"}
+          phx-click="request_action"
+          phx-value-action={if user.banned, do: "unban", else: "ban"}
           phx-value-id={user.id}
-          data-confirm="Change this user's account access?"
         >{if user.banned, do: "Unban", else: "Ban account"}</.button>
       </div>
     </div>
@@ -59,6 +59,23 @@
     </div>
   </div>
   <p class="mt-6 text-xs leading-6 text-muted-foreground">
-    Bans are rechecked on session loading, dashboard events and application-key use. Operator status does not grant access to other users' workspaces. Promote operators explicitly with the local bootstrap task.
+    Bans are rechecked on session loading, dashboard events and application-key use. Operator status does not grant access to other users' applications. Promote operators explicitly with the local bootstrap task.
   </p>
+  <.dialog
+    :if={@pending_action}
+    id="operator-confirmation"
+    title="Confirm change"
+    description={
+      if elem(@pending_action, 0) == "toggle_signup",
+        do: "Change registration policy for all sign-in methods?",
+        else: "Change this user's account access?"
+    }
+  >
+    <div class="flex justify-end gap-2">
+      <.button variant="outline" phx-click="close_dialog">Cancel</.button><.button
+        id="confirm-operator-action"
+        phx-click="confirm_action"
+      >Confirm change</.button>
+    </div>
+  </.dialog>
 </Layouts.app>

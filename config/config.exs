@@ -80,7 +80,7 @@ config :spark,
 config :app,
   ecto_repos: [App.Repo],
   generators: [timestamp_type: :utc_datetime],
-  ash_domains: [App.Accounts, App.Platform, App.Workspaces],
+  ash_domains: [App.Accounts, App.Platform, App.Applications],
   ash_authentication: [return_error_on_invalid_magic_link_token?: true]
 
 # Configure the endpoint

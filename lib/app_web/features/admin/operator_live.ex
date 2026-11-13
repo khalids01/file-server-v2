@@ -3,7 +3,20 @@ defmodule AppWeb.OperatorLive do
   require Ash.Query
   on_mount {AppWeb.LiveUserAuth, :operator_required}
 
-  def mount(_, _, socket), do: {:ok, socket |> assign(offset: 0) |> load()}
+  def mount(_, _, socket), do: {:ok, socket |> assign(offset: 0, pending_action: nil) |> load()}
+
+  def handle_event("request_action", %{"action" => action} = params, socket)
+      when action in ["toggle_signup", "ban", "unban"] do
+    {:noreply, assign(socket, :pending_action, {action, Map.take(params, ["id"])})}
+  end
+
+  def handle_event("close_dialog", _, socket),
+    do: {:noreply, assign(socket, :pending_action, nil)}
+
+  def handle_event("confirm_action", _, socket) do
+    {action, params} = socket.assigns.pending_action
+    handle_event(action, params, assign(socket, :pending_action, nil))
+  end
 
   def handle_event("toggle_signup", _, socket) do
     App.Platform.set_signup_enabled!(!socket.assigns.signup_enabled, socket.assigns.current_user)

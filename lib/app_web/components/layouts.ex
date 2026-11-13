@@ -29,7 +29,6 @@ defmodule AppWeb.Layouts do
   attr :current_user, :any, default: nil
   attr :current_scope, :any, default: nil
   attr :section, :string, default: nil
-  attr :tenant_id, :string, default: nil
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -41,19 +40,6 @@ defmodule AppWeb.Layouts do
     >
       <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card/95 px-5 backdrop-blur lg:px-8">
         <div class="flex min-w-0 items-center gap-3">
-          <.button
-            :if={@section}
-            id="sidebar-toggle"
-            type="button"
-            variant="ghost"
-            class="size-9 p-0"
-            data-sidebar-toggle
-            aria-controls="workspace-sidebar"
-            aria-expanded="true"
-            aria-label="Toggle sidebar"
-          >
-            <.icon name="hero-bars-3" class="size-5" />
-          </.button>
           <.link
             href="/"
             class="flex items-center gap-2.5 text-base font-semibold tracking-tight"
@@ -64,8 +50,20 @@ defmodule AppWeb.Layouts do
               class="size-4"
             /></span>
             File Server
-            <.badge>v2</.badge>
           </.link>
+          <.button
+            :if={@section}
+            id="sidebar-toggle"
+            type="button"
+            variant="ghost"
+            class="size-9 p-0"
+            data-sidebar-toggle
+            aria-controls="app-sidebar"
+            aria-expanded="true"
+            aria-label="Toggle sidebar"
+          >
+            <.sidebar_icon />
+          </.button>
         </div>
         <nav class="flex items-center gap-2 text-sm font-medium" aria-label="Account navigation">
           <.theme_toggle />
@@ -78,12 +76,11 @@ defmodule AppWeb.Layouts do
           <% end %>
         </nav>
       </header>
-      <div class={[@section && "app-workspace"]}>
+      <div class={[@section && "app-dashboard"]}>
         <.sidebar
           :if={@section}
           current_user={@current_user}
           section={@section}
-          tenant_id={@tenant_id}
         />
         <main class={[@section && "min-w-0 flex-1 p-5 sm:p-8 lg:p-10"]}>
           {render_slot(@inner_block)}
@@ -179,7 +176,7 @@ defmodule AppWeb.Layouts do
         class="ui-card absolute right-0 top-11 z-50 min-w-36 p-1 shadow-md"
         aria-label="Color theme"
       >
-        <button
+        <.button
           :for={
             {mode, title, icon} <- [
               {"light", "Light", "hero-sun"},
@@ -187,11 +184,12 @@ defmodule AppWeb.Layouts do
               {"system", "System", "hero-computer-desktop"}
             ]
           }
+          variant="ghost"
           type="button"
           data-theme-choice={mode}
           aria-pressed="false"
           class="theme-option flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
-        ><.icon name={icon} class="size-4" />{title}</button>
+        ><.icon name={icon} class="size-4" />{title}</.button>
       </div>
     </details>
     """

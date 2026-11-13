@@ -15,7 +15,7 @@ function setup({desktop = true, saved = null, blocked = false} = {}) {
   }
   const hook = {el: {
     dataset: {},
-    querySelector: selector => selector === "#workspace-sidebar" ? panel : toggle,
+    querySelector: selector => selector === "#app-sidebar" ? panel : toggle,
     addEventListener: (key, fn) => {events[key] = fn},
     removeEventListener: key => {delete events[key]}
   }}
@@ -50,7 +50,7 @@ test("mobile drawer closes on navigation, backdrop, Escape and viewport changes"
   assert.equal(a.toggle.focused, true)
   for (const action of ["link", "backdrop"]) {
     a.click("[data-sidebar-toggle]")
-    a.click("[data-sidebar-close], #workspace-sidebar a")
+    a.click("[data-sidebar-close], #app-sidebar a")
     assert.equal(a.hook.el.dataset.sidebarOpen, "false", action)
   }
   a.click("[data-sidebar-toggle]")

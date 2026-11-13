@@ -101,7 +101,7 @@ defmodule AppWeb.Router do
     ash_authentication_live_session :authenticated_routes do
       live "/dashboard", DashboardLive, :overview
       live "/dashboard/applications", DashboardLive, :applications
-      live "/dashboard/settings", DashboardLive, :settings
+      live "/dashboard/applications/:id", DashboardLive, :application
       live "/dashboard/profile", DashboardLive, :profile
       live "/dashboard/admin", OperatorLive, :index
     end

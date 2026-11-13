@@ -9,7 +9,7 @@
         Your files.<br /><span class="text-muted-foreground">Your rules.</span>
       </h1>
       <p class="mt-6 max-w-md text-base leading-8 text-muted-foreground">
-        A simpler foundation for your self-hosted file platform. Separate workspaces, scoped access, and secure sign-in — without another password.
+        A simpler foundation for your self-hosted file platform. User-owned applications, scoped access, and secure sign-in — without another password.
       </p>
       <div class="mt-8 flex flex-wrap gap-3">
         <.button id="landing-get-started" href="/register">Get started
@@ -39,7 +39,7 @@
           <div
             :for={
               {name, detail, icon} <- [
-                {"Personal workspace", "Your projects, isolated by default",
+                {"Your applications", "Your projects, isolated by default",
                  "hero-building-office-2"},
                 {"Applications", "Separate access for each integration", "hero-code-bracket"},
                 {"Access keys", "Explicit scopes and revocation", "hero-key"}
@@ -57,7 +57,7 @@
             </div><.icon name="hero-chevron-right" class="ml-auto size-3.5 text-muted-foreground" />
           </div>
           <div class="mt-6 flex items-center justify-between">
-            <span class="text-xs text-muted-foreground">Authentication & workspaces MVP</span><.badge>
+            <span class="text-xs text-muted-foreground">Authentication & applications MVP</span><.badge>
               v2
             </.badge>
           </div>
