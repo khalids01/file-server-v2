@@ -116,7 +116,7 @@ curl -H "Authorization: Bearer $SERVE_APPLICATION_KEY" \
   http://localhost:4000/api/v2/application
 ```
 
-This returns the authorized application identity and `storage_ready: false`.
+This returns the authorized application identity and `storage_ready: true`.
 Keys do not authenticate browsers; requests carrying Origin are rejected. The
 self-only `/api/json/users` API now uses the existing GitHub/OTP browser session,
 not personal bearer credentials. OpenAPI remains at `/api/json/open_api`.
@@ -173,7 +173,7 @@ mix ash.codegen --check
 node --test test/js/*_test.mjs
 ```
 
-Verified: **59 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
+Verified: **67 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, application ownership isolation, bans, key revocation and persisted
@@ -191,10 +191,11 @@ Relevant files: `lib/app_web/features/`, `lib/app/accounts/`, `lib/app/mailer_co
 `lib/app_web/components/`, `assets/css/app.css`, `assets/js/theme.mjs`.
 The full replacement roadmap is under [agent/](agent/README.md). Current behavior
 supersedes the earlier five-method authentication plan. Local/S3 browser storage is
-implemented; v1 imports, SDK file endpoints, transforms, transfers and backups
-remain deferred. `/api/v2/application` keeps `storage_ready: false` until the SDK
-file API exists. Interrupted writes can leave orphan objects; durable reconciliation
-and quotas remain future work.
+implemented, as are scoped `/api/v2/files` routes. V1 SDK compatibility, imports,
+transforms, transfers and backups remain deferred. `/api/v2/application` reports
+`storage_ready: true`, `api_version: "v2"` and `sdk_v1_compatible: false`.
+Interrupted writes can leave orphan objects; durable reconciliation and quotas
+remain future work.
 
 Production additionally needs DATABASE_URL, SECRET_KEY_BASE, TOKEN_SIGNING_SECRET,
 PHX_HOST, SMTP credentials and a persistent encryption key. Configure HTTPS/proxy
@@ -227,3 +228,7 @@ Custom controls live in `components/ui/`: use `<.button>`, `<.input>`, `<.select
 and `<.dialog>` rather than adding native interactive controls in page templates.
 Select uses a custom keyboard-accessible list and a hidden form value; dialogs
 handle focus and Escape. The header places the logo before the sidebar toggle.
+
+See [the v2 file API guide](docs/file-api.md) for curl examples, permissions, limits,
+response formats and differences from the v1 SDK. API credentials are checked
+before upload parsing; requests are limited to 120/minute/key and 300/minute/IP.

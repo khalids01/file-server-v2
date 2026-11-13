@@ -23,7 +23,7 @@ lib/
       ui/                       Button, input, card, badge, table, icon, etc.
       layouts.ex                Shared page shells and theme switcher
       layouts/root.html.heex    Root HTML document
-    api/                        JSON API router and integration API controller
+    api/                        JSON API router, scoped file API, credential and upload parsing plugs
     errors/                     HTML and JSON error responses
     router.ex                   URL → controller/LiveView mapping, route protection
     endpoint.ex                 HTTP server, sockets, sessions
@@ -52,6 +52,7 @@ agent/                          Replacement roadmap and implementation notes
 | SMTP connection settings | `lib/app/mailer_config.ex` and `config/runtime.exs` |
 | Application settings and keys | `/dashboard/applications/:id`, using the dashboard LiveView |
 | Local or S3 file storage | `lib/app/storage/` and `lib/app/storage.ex` |
+| Server-side file API | `lib/app_web/api/file_api_controller.ex` and `application_auth.ex` |
 | Private downloads | `lib/app_web/features/files/file_controller.ex` |
 | Shared selects and dialogs | `lib/app_web/components/ui/select.ex`, `dialog.ex`, and `assets/js/controls.mjs` |
 | Dashboard pages and interactions | `lib/app_web/features/dashboard/dashboard_live.ex` and `.html.heex` |

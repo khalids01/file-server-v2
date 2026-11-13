@@ -81,7 +81,18 @@ defmodule AppWeb.Router do
     end
   end
 
+  pipeline :application_api do
+    plug AppWeb.ApplicationAuth
+    plug AppWeb.UploadParser
+  end
+
   scope "/api/v2", AppWeb do
+    pipe_through :application_api
+    get "/files", FileApiController, :index
+    post "/files", FileApiController, :create
+    get "/files/:id/content", FileApiController, :content
+    get "/files/:id", FileApiController, :show
+    delete "/files/:id", FileApiController, :delete
     get "/application", ApplicationApiController, :show
   end
 

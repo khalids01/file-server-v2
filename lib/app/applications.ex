@@ -41,7 +41,7 @@ defmodule App.Applications do
 
     with %{revoked_at: nil} = key <- key,
          true <- DateTime.compare(key.expires_at, DateTime.utc_now()) == :gt,
-         true <- required_scope in key.scopes,
+         true <- is_nil(required_scope) or required_scope in key.scopes,
          user when not is_nil(user) <- Ash.get!(App.Accounts.User, key.user_id, authorize?: false),
          true <- not is_nil(App.Accounts.active_user(user)),
          {:ok, %Application{} = application} <-

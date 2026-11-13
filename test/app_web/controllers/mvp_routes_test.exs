@@ -79,7 +79,8 @@ defmodule AppWeb.MvpRoutesTest do
       |> json_response(200)
 
     assert response["data"]["id"] == app.id
-    refute response["storage_ready"]
+    assert response["storage_ready"]
+    refute response["sdk_v1_compatible"]
 
     conn
     |> put_req_header("authorization", "Bearer " <> raw)

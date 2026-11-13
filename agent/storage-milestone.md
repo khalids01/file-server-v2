@@ -27,5 +27,4 @@ Next: paginated/searchable file browser, storage quotas and durable reconciliati
 for interrupted writes; then v1-compatible SDK file APIs and imports. No existing
 v1 files are migrated automatically. Transforms/previews, multipart resumable
 uploads, remote bucket browsing/import, public links, backups/transfers and
-credential rotation are not part of this slice. Existing `/api/v2/application`
-continues to report `storage_ready: false` until SDK file routes are implemented.
+credential rotation are not part of this slice. The subsequent file API milestone adds `/api/v2/files`; see [the API guide](../docs/file-api.md). `/api/v2/application` now reports v2 storage readiness and explicitly marks v1 SDK compatibility as false.

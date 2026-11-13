@@ -1,5 +1,8 @@
 defmodule App.Accounts.RateLimit do
-  @moduledoc "Atomic shared-database throttling for password attempts."
+  @moduledoc "Atomic shared-database request limits for authentication and application APIs."
+  def allow_api_ip?(ip), do: allow?("api-ip", ip, 300)
+  def allow_api_key?(id), do: allow?("api-key", id, 120)
+
   def allow_auth_ip?(ip), do: allow?("http", ip, 60)
 
   defp allow?(kind, identity, limit) do
