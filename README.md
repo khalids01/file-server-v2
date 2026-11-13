@@ -127,8 +127,10 @@ the product admin is `/dashboard/admin`.
 
 Applications default to private **local storage**. In **Manage → Settings**, choose
 a destination and save, test it, or connect an S3-compatible bucket. **Files**
-supports uploads (five at a time), a list of the latest 100 files, private downloads
-and confirmed deletion. Cards show actual file counts.
+supports uploads (five at a time), a private file browser with filename search,
+sortable views (newest, oldest, name, size) and paginated results (25 per page),
+private downloads and confirmed deletion. Filters and page persist in the
+`?tab=files` URL. Cards show actual file counts.
 
 - `LOCAL_STORAGE_PATH`: private upload root, default `storage/` under the project.
   In production use a writable persistent volume outside public/static assets.
@@ -173,13 +175,16 @@ mix ash.codegen --check
 node --test test/js/*_test.mjs
 ```
 
-Verified: **67 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
+Verified: **82 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, application ownership isolation, bans, key revocation and persisted
 theme preference. Storage tests cover local I/O, real LiveView upload/download/delete,
 S3 signing/streaming with a simulated bucket, encrypted credentials, failures,
-endpoint restrictions, size limits, and cross-user/application isolation. No real
+endpoint restrictions, size limits, paginated/searchable browser queries,
+malformed-input handling and cross-user/application isolation. Browser tests cover
+search/sort filtering, page navigation, empty-search state and ownership redirects.
+No real
 bucket credentials were used for automated verification. Browser host was unavailable, so screenshot/mobile visual QA is
 not claimed. A real Gmail delivery and GitHub OAuth callback require configured
 credentials and manual/staging verification; no real mail was sent during tests.
@@ -191,7 +196,9 @@ Relevant files: `lib/app_web/features/`, `lib/app/accounts/`, `lib/app/mailer_co
 `lib/app_web/components/`, `assets/css/app.css`, `assets/js/theme.mjs`.
 The full replacement roadmap is under [agent/](agent/README.md). Current behavior
 supersedes the earlier five-method authentication plan. Local/S3 browser storage is
-implemented, as are scoped `/api/v2/files` routes. V1 SDK compatibility, imports,
+implemented, as are scoped `/api/v2/files` routes. The dashboard file browser supports
+filename search, sortable views and 25-per-page pagination persisted in the URL.
+V1 SDK compatibility, imports,
 transforms, transfers and backups remain deferred. `/api/v2/application` reports
 `storage_ready: true`, `api_version: "v2"` and `sdk_v1_compatible: false`.
 Interrupted writes can leave orphan objects; durable reconciliation and quotas

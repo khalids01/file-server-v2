@@ -23,8 +23,22 @@ handling and destination retention are verified without accessing real buckets.
 Endpoint allowlisting, size limits, symlink/path rejection, bans and ownership
 boundaries are tested. A live provider test still requires configured credentials.
 
-Next: paginated/searchable file browser, storage quotas and durable reconciliation
-for interrupted writes; then v1-compatible SDK file APIs and imports. No existing
+Browser milestone (2026-11-13): the `?tab=files` view is now a searchable,
+sortable, paginated private browser. `App.Storage.files_page/3` validates
+page/sort/search, clamps out-of-range pages, filters by filename and performs
+ownership-scoped `application_id` filtering with Ash actor authorization; totals
+reflect the filter. Files page at 25 per page with stable `created_at/id`,
+`filename/id`, `size/id` ordering. Dashboard filters, sort and page persist in
+the URL; upload/delete clamp the current page and preserve filters; empty-search
+and pagination states are rendered; no native controls or confirmation dialogs
+were added. `App.Storage.files/2` remains for existing callers.
+
+Remaining: v1 SDK compatibility, tags/labels, image transforms/previews, imports
+from v1/remote buckets, transfers, durable reconciliation of interrupted writes,
+storage quotas, backups, production verification.
+
+Next: storage quotas and durable reconciliation for interrupted writes; then
+v1-compatible SDK file APIs and imports. No existing
 v1 files are migrated automatically. Transforms/previews, multipart resumable
 uploads, remote bucket browsing/import, public links, backups/transfers and
 credential rotation are not part of this slice. The subsequent file API milestone adds `/api/v2/files`; see [the API guide](../docs/file-api.md). `/api/v2/application` now reports v2 storage readiness and explicitly marks v1 SDK compatibility as false.

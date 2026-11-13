@@ -22,6 +22,73 @@ defmodule App.Storage do
       |> Ash.Query.limit(100)
       |> Ash.read!(actor: actor)
 
+  @file_per_page 25
+  @file_sorts %{
+    "newest" => [created_at: :desc, id: :desc],
+    "oldest" => [created_at: :asc, id: :asc],
+    "name" => [filename: :asc, id: :asc],
+    "size" => [size: :desc, id: :desc]
+  }
+
+  def file_sorts, do: Map.keys(@file_sorts)
+  def files_per_page, do: @file_per_page
+
+  def files_page(actor, app_id, opts \\ []) do
+    search = normalize_search(Keyword.get(opts, :search))
+
+    sort =
+      if Keyword.get(opts, :sort) in Map.keys(@file_sorts),
+        do: Keyword.get(opts, :sort),
+        else: "newest"
+
+    page = normalize_page(Keyword.get(opts, :page))
+
+    query = StoredFile |> Ash.Query.filter(application_id == ^app_id)
+
+    query =
+      if search == "", do: query, else: Ash.Query.filter(query, contains(filename, ^search))
+
+    total = Ash.count!(query, actor: actor)
+    pages = Kernel.max(ceil(total / @file_per_page), 1)
+    page = Kernel.min(page, pages)
+
+    files =
+      query
+      |> Ash.Query.sort(@file_sorts[sort])
+      |> Ash.Query.offset((page - 1) * @file_per_page)
+      |> Ash.Query.limit(@file_per_page)
+      |> Ash.read!(actor: actor)
+
+    %{
+      files: files,
+      total: total,
+      page: page,
+      limit: @file_per_page,
+      pages: pages,
+      search: search,
+      sort: sort
+    }
+  end
+
+  defp normalize_search(nil), do: ""
+
+  defp normalize_search(value) when is_binary(value) do
+    String.trim(value) |> String.slice(0, 200)
+  end
+
+  defp normalize_search(_), do: ""
+
+  defp normalize_page(value) when is_integer(value) and value >= 1, do: Kernel.min(value, 100_000)
+
+  defp normalize_page(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, ""} when n >= 1 -> Kernel.min(n, 100_000)
+      _ -> 1
+    end
+  end
+
+  defp normalize_page(_), do: 1
+
   def counts(actor) do
     StoredFile
     |> Ash.Query.select([:application_id])

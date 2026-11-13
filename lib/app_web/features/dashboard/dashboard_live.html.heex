@@ -185,10 +185,49 @@
       </.card>
       <.card class="p-7">
         <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-lg font-semibold">Files</h2><span class="text-xs text-muted-foreground">Most recent 100 files · Private downloads</span>
+          <h2 class="text-lg font-semibold">Files</h2><span class="text-xs text-muted-foreground">
+            {if @file_total == 1, do: "1 file", else: "#{@file_total} files"} · Private downloads
+          </span>
         </div>
+        <.form
+          for={to_form(%{}, as: :files)}
+          id="file-filters"
+          phx-submit="filter_files"
+          class="mb-5 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end"
+        >
+          <.input
+            name="search"
+            type="search"
+            label="Search filename"
+            id="file-search"
+            value={@file_search}
+            maxlength="200"
+            placeholder="Search by filename…"
+            autocomplete="off"
+          />
+          <.select
+            id="file-sort"
+            name="sort"
+            label="Sort by"
+            value={@file_sort}
+            options={[
+              {"Newest first", "newest"},
+              {"Oldest first", "oldest"},
+              {"Name (A–Z)", "name"},
+              {"Largest first", "size"}
+            ]}
+          />
+          <.button type="submit" class="mb-2"><.icon name="hero-magnifying-glass" />Apply</.button>
+        </.form>
         <p
-          :if={@files == []}
+          :if={@files == [] && @file_search != ""}
+          id="files-search-empty"
+          class="py-8 text-center text-sm text-muted-foreground"
+        >
+          No files match "<span class="font-medium">{@file_search}</span>". Try a different search.
+        </p>
+        <p
+          :if={@files == [] && @file_search == ""}
           id="files-empty"
           class="py-8 text-center text-sm text-muted-foreground"
         >
@@ -222,6 +261,32 @@
             </div>
           </div>
         </div>
+        <nav
+          :if={@file_pages > 1}
+          id="file-pagination"
+          class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-sm"
+          aria-label="File pages"
+        >
+          <.button
+            :if={@file_prev}
+            patch={@file_prev}
+            variant="outline"
+            id="file-page-prev"
+            aria-label="Previous page"
+          ><.icon name="hero-chevron-left" />Previous</.button>
+          <span :if={!@file_prev} class="inline-flex"></span>
+          <span id="file-page-status" class="text-muted-foreground">
+            Page {@file_page} of {@file_pages}
+          </span>
+          <.button
+            :if={@file_next}
+            patch={@file_next}
+            variant="outline"
+            id="file-page-next"
+            aria-label="Next page"
+          >Next<.icon name="hero-chevron-right" /></.button>
+          <span :if={!@file_next} class="inline-flex"></span>
+        </nav>
       </.card>
     </div>
     <.card :if={@tab == "keys"} class="p-7">

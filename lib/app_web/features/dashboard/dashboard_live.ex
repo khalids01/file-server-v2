@@ -13,6 +13,14 @@ defmodule AppWeb.DashboardLive do
        revoking_key: nil,
        deleting_file: nil,
        files: [],
+       file_search: "",
+       file_sort: "newest",
+       file_page: 1,
+       file_limit: App.Storage.files_per_page(),
+       file_total: 0,
+       file_pages: 1,
+       file_prev: nil,
+       file_next: nil,
        connections: [],
        file_counts: %{},
        show_storage: false,
@@ -34,9 +42,19 @@ defmodule AppWeb.DashboardLive do
   end
 
   def handle_params(params, _, socket) do
+    tab = if params["tab"] in ["settings", "keys", "files"], do: params["tab"], else: "settings"
+
     socket =
       socket
-      |> assign(selected_app: nil, plaintext_key: nil, tab: params["tab"] || "settings")
+      |> assign(
+        selected_app: nil,
+        plaintext_key: nil,
+        tab: tab,
+        file_search: file_param(params["search"], 200),
+        file_sort:
+          if(params["sort"] in App.Storage.file_sorts(), do: params["sort"], else: "newest"),
+        file_page: page_param(params["page"])
+      )
       |> load_apps()
 
     if socket.assigns.live_action == :application do
@@ -156,6 +174,16 @@ defmodule AppWeb.DashboardLive do
 
   def handle_event("validate_files", _, socket), do: {:noreply, socket}
 
+  def handle_event("filter_files", params, socket) do
+    search = file_param(params["search"], 200)
+
+    sort =
+      if params["sort"] in App.Storage.file_sorts(), do: params["sort"], else: "newest"
+
+    {:noreply,
+     push_patch(socket, to: files_path(socket.assigns.selected_app.id, search, sort, 1))}
+  end
+
   def handle_event("cancel_upload", %{"ref" => ref}, socket),
     do: {:noreply, cancel_upload(socket, :documents, ref)}
 
@@ -184,7 +212,7 @@ defmodule AppWeb.DashboardLive do
           ),
         else: put_flash(socket, :info, "Files uploaded")
 
-    {:noreply, socket |> load_storage() |> load_apps()}
+    {:noreply, socket |> load_storage(sync_url: true) |> load_apps()}
   end
 
   def handle_event("delete_file", %{"id" => id}, socket) do
@@ -205,7 +233,7 @@ defmodule AppWeb.DashboardLive do
          socket
          |> assign(deleting_file: nil)
          |> put_flash(:info, "File deleted")
-         |> load_storage()
+         |> load_storage(sync_url: true)
          |> load_apps()}
 
       _ ->
@@ -338,14 +366,44 @@ defmodule AppWeb.DashboardLive do
     socket |> assign(:keys, keys) |> stream(:keys, keys, reset: true)
   end
 
-  defp load_storage(socket) do
+  defp load_storage(socket, opts \\ []) do
     actor = socket.assigns.current_user
     app_id = socket.assigns.selected_app.id
-    files = App.Storage.files(actor, app_id)
 
-    socket
-    |> assign(files: files, connections: App.Storage.connections(actor, app_id))
-    |> stream(:files, files, reset: true)
+    result =
+      App.Storage.files_page(actor, app_id,
+        search: socket.assigns.file_search,
+        sort: socket.assigns.file_sort,
+        page: socket.assigns.file_page
+      )
+
+    clamped? = result.page != socket.assigns.file_page
+
+    socket =
+      socket
+      |> assign(
+        files: result.files,
+        file_total: result.total,
+        file_page: result.page,
+        file_pages: result.pages,
+        file_limit: result.limit,
+        file_search: result.search,
+        file_sort: result.sort,
+        file_prev:
+          if(result.page > 1, do: files_path(app_id, result.search, result.sort, result.page - 1)),
+        file_next:
+          if(result.page < result.pages,
+            do: files_path(app_id, result.search, result.sort, result.page + 1)
+          ),
+        connections: App.Storage.connections(actor, app_id)
+      )
+      |> stream(:files, result.files, reset: true)
+
+    if clamped? and Keyword.get(opts, :sync_url, false) and connected?(socket) do
+      push_patch(socket, to: files_path(app_id, result.search, result.sort, result.page))
+    else
+      socket
+    end
   end
 
   defp perform(socket, fun) do
@@ -376,6 +434,33 @@ defmodule AppWeb.DashboardLive do
   defp format_bytes(size) when size < 1024, do: "#{size} B"
   defp format_bytes(size) when size < 1024 * 1024, do: "#{Float.round(size / 1024, 1)} KB"
   defp format_bytes(size), do: "#{Float.round(size / (1024 * 1024), 1)} MB"
+
+  defp file_param(value, max) when is_binary(value) do
+    String.trim(value) |> String.slice(0, max)
+  end
+
+  defp file_param(_, _), do: ""
+
+  defp page_param(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, ""} when n >= 1 -> Kernel.min(n, 100_000)
+      _ -> 1
+    end
+  end
+
+  defp page_param(value) when is_integer(value) and value >= 1, do: Kernel.min(value, 100_000)
+  defp page_param(_), do: 1
+
+  defp files_path(app_id, search, sort, page) do
+    query =
+      [tab: "files"]
+      |> then(fn base -> if search != "", do: Keyword.put(base, :search, search), else: base end)
+      |> then(fn base -> if sort != "newest", do: Keyword.put(base, :sort, sort), else: base end)
+      |> then(fn base -> if page != 1, do: Keyword.put(base, :page, page), else: base end)
+      |> URI.encode_query()
+
+    "/dashboard/applications/#{app_id}?#{query}"
+  end
 
   defp section(action),
     do:
