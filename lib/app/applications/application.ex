@@ -21,7 +21,16 @@ defmodule App.Applications.Application do
 
     update :update do
       primary? true
-      accept [:name]
+      accept [:name, :storage_connection_id]
+      require_atomic? false
+
+      change fn changeset, context ->
+        id = Ash.Changeset.get_attribute(changeset, :storage_connection_id)
+
+        if App.Storage.valid_connection?(context.actor, changeset.data.id, id),
+          do: changeset,
+          else: Ash.Changeset.add_error(changeset, "Storage connection is unavailable")
+      end
     end
   end
 
@@ -54,6 +63,7 @@ defmodule App.Applications.Application do
   end
 
   relationships do
+    belongs_to :storage_connection, App.Storage.Connection
     belongs_to :user, App.Accounts.User, allow_nil?: false
   end
 

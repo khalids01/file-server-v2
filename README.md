@@ -91,7 +91,7 @@ resolve by their stable provider ID. Provider access/refresh tokens are discarde
 - `/dashboard`: application and API-key overview.
 - `/dashboard/applications`: v1-style application cards, empty state and creation dialog.
 - `/dashboard/applications/:id`: application name/settings; `?tab=keys` manages scoped,
-  thirty-day keys; `?tab=files` shows the pending storage milestone.
+  thirty-day keys; `?tab=files` uploads, lists, downloads and deletes private files.
 - `/dashboard/profile`: full-width profile editor; GitHub or email-code sign-in.
 - `/dashboard/admin`: operator-only user list, ban/unban and signup toggle.
 
@@ -125,9 +125,39 @@ the product admin is `/dashboard/admin`.
 
 ## Storage environment
 
-Your `S3_*`, `MAX_FILE_SIZE_MB` and legacy `NEXT_PUBLIC_MAX_FILE_SIZE` settings are
-reserved for the planned storage implementation. This update does not implement
-uploads, S3 connections or enforce upload-size settings for a nonexistent endpoint.
+Applications default to private **local storage**. In **Manage → Settings**, choose
+a destination and save, test it, or connect an S3-compatible bucket. **Files**
+supports uploads (five at a time), a list of the latest 100 files, private downloads
+and confirmed deletion. Cards show actual file counts.
+
+- `LOCAL_STORAGE_PATH`: private upload root, default `storage/` under the project.
+  In production use a writable persistent volume outside public/static assets.
+- `MAX_FILE_SIZE_MB`: enforced by LiveView and the storage service, default 50.
+  Legacy `NEXT_PUBLIC_MAX_FILE_SIZE` is not used by the Elixir app.
+- Existing `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_REGION`, and
+  `S3_ENDPOINT`: enable **S3 from server environment** in the destination selector.
+  Selecting it and saving copies the config into an encrypted destination record.
+- Alternatively, **Connect S3 storage** saves credentials entered in the dialog.
+  Both paths use path-style S3 requests, SigV4 signing and streamed transfers.
+- Provider endpoint suffixes supported by default: `amazonaws.com`, `idrivee2.com`,
+  `r2.cloudflarestorage.com`, `digitaloceanspaces.com`, `backblazeb2.com`,
+  `wasabisys.com`. Endpoints must be HTTPS and have no path, query or embedded
+  credentials. For custom/private MinIO hosts, explicitly set comma-separated
+  `S3_ALLOWED_HOSTS` on the server. HTTP is permitted only for those explicit hosts.
+
+Buckets must already exist. Credentials need object Put/Get/Delete permissions.
+**Test current storage** writes, checks and deletes a tiny object in the app's
+namespace; it does not list or import existing bucket contents. Changing the
+default destination affects new uploads only. Existing files retain their
+original destination and encrypted credential snapshot. Connection records are
+immutable in this milestone; key rotation and destination removal remain future work.
+
+Downloads require the owning user's active session and are attachments, never
+public static URLs. S3 downloads stream into a bounded temporary file and are
+removed after sending. Local files use generated UUID paths, restrictive file
+permissions, and reject symlinks and user-provided paths. Files are private, but
+this milestone does not encrypt file contents; the vault encrypts S3 credentials.
+
 `STORAGE_ENCRYPTION_KEY` is supported as the vault key; a nonempty `CLOAK_KEY` takes
 precedence. It must decode from base64 to exactly 32 bytes. Generate with
 `openssl rand -base64 32`, retain it securely across deployments and back it up
@@ -143,11 +173,14 @@ mix ash.codegen --check
 node --test test/js/*_test.mjs
 ```
 
-Verified: **48 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
+Verified: **59 Elixir tests + 13 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, application ownership isolation, bans, key revocation and persisted
-theme preference. Browser host was unavailable, so screenshot/mobile visual QA is
+theme preference. Storage tests cover local I/O, real LiveView upload/download/delete,
+S3 signing/streaming with a simulated bucket, encrypted credentials, failures,
+endpoint restrictions, size limits, and cross-user/application isolation. No real
+bucket credentials were used for automated verification. Browser host was unavailable, so screenshot/mobile visual QA is
 not claimed. A real Gmail delivery and GitHub OAuth callback require configured
 credentials and manual/staging verification; no real mail was sent during tests.
 
@@ -157,8 +190,11 @@ shared components, and where to edit each screen.
 Relevant files: `lib/app_web/features/`, `lib/app/accounts/`, `lib/app/mailer_config.ex`,
 `lib/app_web/components/`, `assets/css/app.css`, `assets/js/theme.mjs`.
 The full replacement roadmap is under [agent/](agent/README.md). Current behavior
-supersedes the earlier five-method authentication plan. V1 storage/migration,
-file manager, transfers, backups and private delivery remain deferred.
+supersedes the earlier five-method authentication plan. Local/S3 browser storage is
+implemented; v1 imports, SDK file endpoints, transforms, transfers and backups
+remain deferred. `/api/v2/application` keeps `storage_ready: false` until the SDK
+file API exists. Interrupted writes can leave orphan objects; durable reconciliation
+and quotas remain future work.
 
 Production additionally needs DATABASE_URL, SECRET_KEY_BASE, TOKEN_SIGNING_SECRET,
 PHX_HOST, SMTP credentials and a persistent encryption key. Configure HTTPS/proxy

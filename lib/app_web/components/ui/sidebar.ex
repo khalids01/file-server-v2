@@ -47,7 +47,7 @@ defmodule AppWeb.UI.Sidebar do
       </nav>
       <div class="sidebar-footer sidebar-label">
         <strong class="mb-1 block font-medium text-foreground">Your infrastructure.</strong>
-        Your applications, your keys. File storage is coming next.
+        Your applications and files. Local disk or your own S3 bucket.
       </div>
     </aside>
     """

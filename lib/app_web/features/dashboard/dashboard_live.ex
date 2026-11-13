@@ -11,12 +11,25 @@ defmodule AppWeb.DashboardLive do
        plaintext_key: nil,
        selected_app: nil,
        revoking_key: nil,
+       deleting_file: nil,
+       files: [],
+       connections: [],
+       file_counts: %{},
+       show_storage: false,
+       storage_error: nil,
+       testing_storage: false,
+       environment_s3?: App.Storage.environment_available?(),
        keys: [],
        applications: [],
        show_create: false,
        save_error: nil,
        tab: "settings",
        key_counts: %{}
+     )
+     |> allow_upload(:documents,
+       accept: :any,
+       max_entries: 5,
+       max_file_size: App.Storage.max_file_size()
      )}
   end
 
@@ -29,7 +42,11 @@ defmodule AppWeb.DashboardLive do
     if socket.assigns.live_action == :application do
       case Ash.get(Application, params["id"], actor: socket.assigns.current_user) do
         {:ok, %Application{} = app} ->
-          {:noreply, socket |> assign(selected_app: app) |> load_keys()}
+          {:noreply,
+           socket
+           |> assign(selected_app: app, show_storage: false, storage_error: nil)
+           |> load_keys()
+           |> load_storage()}
 
         _ ->
           {:noreply,
@@ -46,12 +63,39 @@ defmodule AppWeb.DashboardLive do
     do: {:noreply, assign(socket, show_create: true, save_error: nil)}
 
   def handle_event("close_dialog", _, socket),
-    do: {:noreply, assign(socket, show_create: false, revoking_key: nil)}
+    do:
+      {:noreply,
+       assign(socket,
+         show_create: false,
+         revoking_key: nil,
+         deleting_file: nil,
+         show_storage: false
+       )}
 
   def handle_event("update_application", %{"application" => attrs}, socket) do
     perform(socket, fn ->
+      app = socket.assigns.selected_app
+
+      connection_id =
+        case attrs["storage_connection_id"] do
+          "environment" ->
+            case App.Storage.environment_connection(socket.assigns.current_user, app.id) do
+              {:ok, connection} -> connection.id
+              _ -> raise Ash.Error.Invalid, message: "Environment S3 is not configured"
+            end
+
+          "local" ->
+            nil
+
+          nil ->
+            app.storage_connection_id
+
+          id ->
+            id
+        end
+
       app =
-        Ash.update!(socket.assigns.selected_app, Map.take(attrs, ["name"]),
+        Ash.update!(app, %{name: attrs["name"], storage_connection_id: connection_id},
           actor: socket.assigns.current_user
         )
 
@@ -59,7 +103,117 @@ defmodule AppWeb.DashboardLive do
       |> assign(selected_app: app)
       |> put_flash(:info, "Application updated")
       |> load_apps()
+      |> load_storage()
     end)
+  end
+
+  def handle_event("new_storage", _, socket),
+    do: {:noreply, assign(socket, show_storage: true, storage_error: nil)}
+
+  def handle_event("create_storage", %{"storage" => attrs}, socket) do
+    case App.Storage.create_connection(
+           socket.assigns.current_user,
+           socket.assigns.selected_app.id,
+           attrs
+         ) do
+      {:ok, connection} ->
+        perform(socket, fn ->
+          app =
+            Ash.update!(socket.assigns.selected_app, %{storage_connection_id: connection.id},
+              actor: socket.assigns.current_user
+            )
+
+          socket
+          |> assign(selected_app: app, show_storage: false)
+          |> put_flash(:info, "S3 connection saved. Test the connection before uploading.")
+          |> load_storage()
+        end)
+
+      {:error, message} ->
+        {:noreply,
+         assign(
+           socket,
+           :storage_error,
+           if(is_binary(message),
+             do: message,
+             else: "Unable to save the connection. Check the fields."
+           )
+         )}
+    end
+  end
+
+  def handle_event("test_storage", _, socket) do
+    actor = socket.assigns.current_user
+    app = socket.assigns.selected_app
+
+    {:noreply,
+     socket
+     |> assign(testing_storage: true)
+     |> start_async(:test_storage, fn ->
+       App.Storage.test_connection(actor, app.id, app.storage_connection_id)
+     end)}
+  end
+
+  def handle_event("validate_files", _, socket), do: {:noreply, socket}
+
+  def handle_event("cancel_upload", %{"ref" => ref}, socket),
+    do: {:noreply, cancel_upload(socket, :documents, ref)}
+
+  def handle_event("upload_files", _, socket) do
+    results =
+      consume_uploaded_entries(socket, :documents, fn %{path: path}, entry ->
+        {:ok,
+         App.Storage.upload(
+           socket.assigns.current_user,
+           socket.assigns.selected_app.id,
+           path,
+           entry.client_name,
+           entry.client_type
+         )}
+      end)
+
+    failed? = Enum.any?(results, fn result -> not match?({:ok, _}, result) end)
+
+    socket =
+      if failed?,
+        do:
+          put_flash(
+            socket,
+            :error,
+            "Some files could not be stored. Check the connection and select those files again."
+          ),
+        else: put_flash(socket, :info, "Files uploaded")
+
+    {:noreply, socket |> load_storage() |> load_apps()}
+  end
+
+  def handle_event("delete_file", %{"id" => id}, socket) do
+    case Ash.get(App.Storage.StoredFile, id, actor: socket.assigns.current_user) do
+      {:ok, %App.Storage.StoredFile{application_id: app_id} = file}
+      when app_id == socket.assigns.selected_app.id ->
+        {:noreply, assign(socket, :deleting_file, file)}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "File unavailable")}
+    end
+  end
+
+  def handle_event("confirm_delete_file", _, socket) do
+    case App.Storage.delete(socket.assigns.current_user, socket.assigns.deleting_file.id) do
+      :ok ->
+        {:noreply,
+         socket
+         |> assign(deleting_file: nil)
+         |> put_flash(:info, "File deleted")
+         |> load_storage()
+         |> load_apps()}
+
+      _ ->
+        {:noreply,
+         socket
+         |> assign(deleting_file: nil)
+         |> put_flash(:error, "Unable to delete file. Check the storage connection.")}
+    end
   end
 
   def handle_event("create_application", %{"application" => attrs}, socket) do
@@ -133,6 +287,23 @@ defmodule AppWeb.DashboardLive do
     end)
   end
 
+  def handle_async(:test_storage, {:ok, :ok}, socket),
+    do:
+      {:noreply,
+       socket
+       |> assign(testing_storage: false)
+       |> put_flash(:info, "Storage connection is working")}
+
+  def handle_async(:test_storage, _, socket),
+    do:
+      {:noreply,
+       socket
+       |> assign(testing_storage: false)
+       |> put_flash(
+         :error,
+         "Storage test failed. Check endpoint, credentials, bucket and object permissions."
+       )}
+
   defp load_apps(socket) do
     apps =
       Application
@@ -146,7 +317,11 @@ defmodule AppWeb.DashboardLive do
       |> Enum.frequencies_by(& &1.application_id)
 
     socket
-    |> assign(applications: apps, key_counts: counts)
+    |> assign(
+      applications: apps,
+      key_counts: counts,
+      file_counts: App.Storage.counts(socket.assigns.current_user)
+    )
     |> stream(:applications, apps, reset: true)
   end
 
@@ -163,6 +338,16 @@ defmodule AppWeb.DashboardLive do
     socket |> assign(:keys, keys) |> stream(:keys, keys, reset: true)
   end
 
+  defp load_storage(socket) do
+    actor = socket.assigns.current_user
+    app_id = socket.assigns.selected_app.id
+    files = App.Storage.files(actor, app_id)
+
+    socket
+    |> assign(files: files, connections: App.Storage.connections(actor, app_id))
+    |> stream(:files, files, reset: true)
+  end
+
   defp perform(socket, fun) do
     {:noreply, fun.()}
   rescue
@@ -172,6 +357,25 @@ defmodule AppWeb.DashboardLive do
        |> assign(:save_error, "Unable to save. Check your input and application permissions.")
        |> put_flash(:error, "Unable to save. Check your input and application permissions.")}
   end
+
+  defp storage_options(connections, environment?) do
+    [{"Local storage (this server)", "local"}] ++
+      Enum.map(connections, &{&1.name, &1.id}) ++
+      if(environment?, do: [{"S3 from server environment", "environment"}], else: [])
+  end
+
+  defp storage_label(_, nil), do: "Local storage"
+
+  defp storage_label(connections, id) do
+    case Enum.find(connections, &(&1.id == id)) do
+      nil -> "S3 storage"
+      connection -> connection.name
+    end
+  end
+
+  defp format_bytes(size) when size < 1024, do: "#{size} B"
+  defp format_bytes(size) when size < 1024 * 1024, do: "#{Float.round(size / 1024, 1)} KB"
+  defp format_bytes(size), do: "#{Float.round(size / (1024 * 1024), 1)} MB"
 
   defp section(action),
     do:

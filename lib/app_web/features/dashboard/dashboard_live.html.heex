@@ -71,7 +71,7 @@
         </div>
         <h2 class="mt-4 truncate text-xl font-semibold">{app.name}</h2>
         <div class="my-4 flex justify-between gap-2 text-sm text-muted-foreground">
-          <span title="File storage is not implemented yet">Files coming soon</span><span>{Map.get(
+          <span>{Map.get(@file_counts, app.id, 0)} files</span><span>{Map.get(
             @key_counts,
             app.id,
             0
@@ -131,19 +131,99 @@
           maxlength="80"
         />
         <.input name="slug" label="Slug" value={@selected_app.slug} readonly />
+        <.select
+          id="application-storage"
+          name="application[storage_connection_id]"
+          label="Default storage destination"
+          value={@selected_app.storage_connection_id || "local"}
+          options={storage_options(@connections, @environment_s3?)}
+        />
+        <p class="text-xs text-muted-foreground">
+          New uploads use this destination. Existing files stay in their original location.
+        </p>
         <.button>Save changes</.button>
       </.form>
-      <p class="mt-5 text-sm text-muted-foreground">
-        Storage configuration will be available when file storage is implemented.
+      <div class="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
+        <.button
+          id="test-storage"
+          type="button"
+          variant="outline"
+          phx-click="test_storage"
+          disabled={@testing_storage}
+        ><.icon name="hero-signal" />{if @testing_storage,
+          do: "Testing…",
+          else: "Test current storage"}</.button>
+        <.button id="connect-s3" type="button" variant="outline" phx-click="new_storage"><.icon name="hero-cloud" />Connect S3 storage</.button>
+      </div>
+      <p class="mt-3 text-xs text-muted-foreground">
+        Local files are private on this server. S3 credentials are encrypted and never sent back to the browser.
       </p>
     </.card>
-    <.card :if={@tab == "files"} class="p-12 text-center">
-      <.icon name="hero-folder-open" class="mx-auto mb-4 size-10 text-muted-foreground" /><h2 class="text-lg font-semibold">
-        File storage is coming next
-      </h2><p class="mt-2 text-sm text-muted-foreground">
-        Uploads, file browsing, and storage settings are not available yet.
-      </p>
-    </.card>
+    <div :if={@tab == "files"} class="space-y-6">
+      <.card class="p-7">
+        <h2 class="mb-2 text-lg font-semibold">Upload files</h2>
+        <p class="mb-5 text-sm text-muted-foreground">
+          Destination: {storage_label(@connections, @selected_app.storage_connection_id)}
+        </p>
+        <.form
+          for={to_form(%{})}
+          id="upload-files"
+          phx-change="validate_files"
+          phx-submit="upload_files"
+          class="space-y-4"
+        >
+          <.file_upload
+            upload={@uploads.documents}
+            max_mb={div(App.Storage.max_file_size(), 1024 * 1024)}
+          />
+          <.button
+            id="upload-files-button"
+            phx-disable-with="Uploading…"
+            disabled={@uploads.documents.entries == [] || upload_errors(@uploads.documents) != []}
+          >Upload files</.button>
+        </.form>
+      </.card>
+      <.card class="p-7">
+        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-lg font-semibold">Files</h2><span class="text-xs text-muted-foreground">Most recent 100 files · Private downloads</span>
+        </div>
+        <p
+          :if={@files == []}
+          id="files-empty"
+          class="py-8 text-center text-sm text-muted-foreground"
+        >
+          No files yet. Upload your first file above.
+        </p>
+        <div id="stored-files" phx-update="stream" class="divide-y divide-border">
+          <div
+            :for={{dom_id, file} <- @streams.files}
+            id={dom_id}
+            class="flex flex-wrap items-center justify-between gap-3 py-4"
+          >
+            <div class="min-w-0">
+              <p class="break-all text-sm font-medium">{file.filename}</p><p class="mt-1 text-xs text-muted-foreground">
+                {format_bytes(file.size)} · {storage_label(@connections, file.connection_id)} · {Calendar.strftime(
+                  file.created_at,
+                  "%d %b %Y"
+                )}
+              </p>
+            </div>
+            <div class="flex gap-2">
+              <.button
+                href={~p"/files/#{file.id}/download"}
+                variant="outline"
+                aria-label={"Download " <> file.filename}
+              ><.icon name="hero-arrow-down-tray" />Download</.button><.button
+                variant="ghost"
+                phx-click="delete_file"
+                phx-value-id={file.id}
+                aria-label={"Delete " <> file.filename}
+              ><.icon name="hero-trash" /></.button>
+            </div>
+          </div>
+        </div>
+      </.card>
+    </div>
     <.card :if={@tab == "keys"} class="p-7">
       <h2 class="text-lg font-semibold">API keys</h2>
       <p class="mt-2 text-sm text-muted-foreground">
@@ -209,7 +289,7 @@
       </div>
       <p class="mt-5 text-xs leading-6 text-muted-foreground">
         Test with <code>GET /api/v2/application</code>
-        and <code>Authorization: Bearer &lt;key&gt;</code>. File endpoints will arrive with the storage milestone.
+        and <code>Authorization: Bearer &lt;key&gt;</code>. Use the Files tab for uploads and private downloads. SDK file endpoints are planned.
       </p>
     </.card>
   </section>
@@ -289,6 +369,71 @@
         variant="destructive"
         phx-click="confirm_revoke_key"
       >Revoke key</.button>
+    </div>
+  </.dialog>
+  <.dialog
+    :if={@show_storage}
+    id="storage-connection-dialog"
+    title="Connect S3 storage"
+    description="Connect Amazon S3, IDrive e2, R2, or another S3-compatible provider. The bucket must already exist."
+  >
+    <.form
+      for={to_form(%{}, as: :storage)}
+      id="storage-connection-form"
+      phx-submit="create_storage"
+      class="space-y-4"
+    >
+      <p :if={@storage_error} role="alert" class="text-sm text-destructive">{@storage_error}</p>
+      <.input
+        name="storage[name]"
+        label="Connection name"
+        placeholder="My IDrive bucket"
+        required
+        minlength="2"
+        maxlength="80"
+      />
+      <.input
+        name="storage[endpoint]"
+        label="Endpoint"
+        placeholder="https://s3.ap-northeast-1.idrivee2.com"
+        required
+      />
+      <div class="grid gap-4 sm:grid-cols-2">
+        <.input name="storage[bucket]" label="Bucket" placeholder="serve" required /><.input
+          name="storage[region]"
+          label="Region"
+          placeholder="ap-northeast-1"
+          required
+        />
+      </div>
+      <.input name="storage[access_key_id]" label="Access key ID" autocomplete="off" required />
+      <.input
+        name="storage[secret_access_key]"
+        label="Secret access key"
+        type="password"
+        autocomplete="off"
+        required
+      />
+      <p class="text-xs text-muted-foreground">
+        Path-style requests are used. Custom endpoint hosts require the server's S3_ALLOWED_HOSTS setting.
+      </p>
+      <div class="flex justify-end gap-2">
+        <.button type="button" variant="outline" phx-click="close_dialog">Cancel</.button><.button phx-disable-with="Saving…">Save connection</.button>
+      </div>
+    </.form>
+  </.dialog>
+  <.dialog
+    :if={@deleting_file}
+    id="delete-file-dialog"
+    title="Delete this file?"
+    description={"Permanently delete " <> @deleting_file.filename <> " from its original storage location?"}
+  >
+    <div class="flex justify-end gap-2">
+      <.button variant="outline" phx-click="close_dialog">Cancel</.button><.button
+        id="confirm-delete-file"
+        variant="destructive"
+        phx-click="confirm_delete_file"
+      >Delete file</.button>
     </div>
   </.dialog>
 </Layouts.app>

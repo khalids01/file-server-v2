@@ -40,3 +40,6 @@ npm-debug.log
 .env
 .env.*
 !.env.example
+
+# Private local file storage
+/storage/

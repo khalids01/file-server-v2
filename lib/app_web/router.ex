@@ -112,6 +112,8 @@ defmodule AppWeb.Router do
 
     get "/", PageController, :home
 
+    get "/files/:id/download", FileController, :download
+
     get "/sign-in/otp", OtpController, :new
     post "/sign-in/otp", OtpController, :request_code
     post "/sign-in/otp/verify", OtpController, :verify

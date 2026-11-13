@@ -179,3 +179,16 @@ if config_env() == :prod do
 
   # SMTP is configured above for both development and production.
 end
+
+# Local paths and custom S3 hosts are operator configuration, never browser-provided paths.
+config :app,
+  local_storage_path: Path.expand(System.get_env("LOCAL_STORAGE_PATH", "storage")),
+  max_file_size:
+    (case Integer.parse(System.get_env("MAX_FILE_SIZE_MB", "50")) do
+       {n, ""} when n in 1..1024 -> n * 1024 * 1024
+       _ -> raise "MAX_FILE_SIZE_MB must be an integer from 1 to 1024"
+     end),
+  s3_allowed_hosts:
+    System.get_env("S3_ALLOWED_HOSTS", "")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)

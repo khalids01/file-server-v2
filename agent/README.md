@@ -1,4 +1,4 @@
-> Current architecture: User → Applications → Files/storage settings/API keys. Workspaces and memberships have been removed; older roadmap references below are historical. File storage remains planned.
+> Current architecture: User → Applications → Files/storage settings/API keys. Workspaces and memberships have been removed; older roadmap references below are historical. Local/S3 application file storage is implemented. See [storage-milestone.md](storage-milestone.md) for scope and remaining work.
 
 # App v2 replacement planning
 

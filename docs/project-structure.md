@@ -8,6 +8,8 @@ lib/
   app/                          Backend: resources, permissions, business rules
     accounts/                   Users, GitHub identity, email OTP, sessions
     applications/               User-owned applications and integration keys
+    storage/                    Connections, private file metadata, local/S3 adapters
+    storage.ex                  Authorized upload/download/delete and storage checks
     mailer.ex                   Swoosh mail delivery
     mailer_config.ex            SMTP configuration
   app_web/                      Browser and HTTP layer
@@ -16,6 +18,7 @@ lib/
       auth/                     Sign-in, OTP pages, OAuth callbacks, route guards
       dashboard/                Dashboard LiveView and its adjacent HTML template
       admin/                    Operator LiveView and its adjacent HTML template
+      files/                    Private download controller
     components/
       ui/                       Button, input, card, badge, table, icon, etc.
       layouts.ex                Shared page shells and theme switcher
@@ -48,6 +51,8 @@ agent/                          Replacement roadmap and implementation notes
 | Email code validation or GitHub account linking | `lib/app/accounts/` |
 | SMTP connection settings | `lib/app/mailer_config.ex` and `config/runtime.exs` |
 | Application settings and keys | `/dashboard/applications/:id`, using the dashboard LiveView |
+| Local or S3 file storage | `lib/app/storage/` and `lib/app/storage.ex` |
+| Private downloads | `lib/app_web/features/files/file_controller.ex` |
 | Shared selects and dialogs | `lib/app_web/components/ui/select.ex`, `dialog.ex`, and `assets/js/controls.mjs` |
 | Dashboard pages and interactions | `lib/app_web/features/dashboard/dashboard_live.ex` and `.html.heex` |
 | Admin page and interactions | `lib/app_web/features/admin/operator_live.ex` and `.html.heex` |
