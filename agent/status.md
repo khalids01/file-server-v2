@@ -32,15 +32,17 @@ Completed (2026-11-14):
 
 - File management: URL-persisted grid/list, reusable private previews/placeholders, file details, current-page multi-select, confirmed bulk delete and add/remove/replace tags with partial errors, per-file upload outcomes/reselection, and clipboard feedback. See [the guide](../docs/file-management.md).
 
+- Usage/operations: live application Usage & recovery tab, account/card totals, scoped usage API, queued recovery controls, generic liveness/readiness probes and operator backup tool. PostgreSQL/local backup/restore rehearsal passed. See [operations](../docs/operations.md).
+
 V1 compatibility is explicitly out of scope; the API remains independently versioned v2.
 
 Remaining:
 
-- Expiring/revocable share links and application analytics.
+- Real-provider staging and production monitoring/backup scheduling. Sharing is deferred until needed.
 - Imports from v1 or remote buckets.
 - Backups and transfers.
 - Production verification (HTTPS, DATABASE_URL, secrets, persistent vault key,
   real SMTP/GitHub credentials, no real buckets in automated tests).
 
-Verification: 115 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
+Verification: 121 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
 Real-bucket and browser visual checks remain unverified.

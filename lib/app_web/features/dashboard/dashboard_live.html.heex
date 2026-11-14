@@ -27,12 +27,35 @@
     <div class="grid gap-6 sm:grid-cols-2">
       <.card class="p-6">
         <p class="text-sm text-muted-foreground">Applications</p><p class="mt-4 text-3xl font-semibold">
-          {length(@applications)}
+          {@account_insights.application_count}
         </p>
       </.card>
       <.card class="p-6">
         <p class="text-sm text-muted-foreground">API keys</p><p class="mt-4 text-3xl font-semibold">
           {Enum.sum(Map.values(@key_counts))}
+        </p>
+      </.card>
+    </div>
+    <div :if={@account_insights} id="account-usage-summary" class="grid gap-4 sm:grid-cols-3">
+      <.card class="p-6">
+        <p class="text-sm text-muted-foreground">Stored files</p><p class="mt-2 text-2xl font-semibold">
+          {@account_insights.totals.files}
+        </p>
+      </.card>
+      <.card class="p-6">
+        <p class="text-sm text-muted-foreground">Account storage</p><p class="mt-2 text-2xl font-semibold">
+          {format_bytes(@account_insights.quota.used_bytes)}
+        </p><p class="mt-1 text-xs text-muted-foreground">
+          {format_bytes(@account_insights.quota.reserved_bytes)} reserved · {format_bytes(
+            @account_insights.quota.quota_bytes
+          )} quota
+        </p>
+      </.card>
+      <.card class="p-6">
+        <p class="text-sm text-muted-foreground">Needs attention</p><p class="mt-2 text-2xl font-semibold">
+          {@account_insights.totals.image_failed + @account_insights.totals.cleanup_pending}
+        </p><p class="mt-1 text-xs text-muted-foreground">
+          Open an application's Usage &amp; recovery tab.
         </p>
       </.card>
     </div>
@@ -77,7 +100,17 @@
             0
           )} API keys</span>
         </div>
-        <div class="flex gap-2">
+        <p class="mb-4 text-xs text-muted-foreground">
+          {format_bytes(get_in(@account_insights.applications, [app.id, :original_bytes]) || 0)} originals · {format_bytes(
+            get_in(@account_insights.applications, [app.id, :variant_bytes]) || 0
+          )} previews
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <.button
+            navigate={~p"/dashboard/applications/#{app.id}?tab=usage"}
+            variant="outline"
+            aria-label={"Usage for " <> app.name}
+          ><.icon name="hero-chart-bar" />Usage</.button>
           <.button
             navigate={~p"/dashboard/applications/#{app.id}"}
             variant="outline"
@@ -102,19 +135,121 @@
 
   <section :if={@selected_app} class="space-y-6">
     <nav
-      class="flex gap-1 rounded-lg border border-border bg-muted p-1"
+      class="flex flex-wrap gap-1 rounded-lg border border-border bg-muted p-1"
       aria-label="Application sections"
     >
       <.button
         :for={
-          {title, tab} <- [{"Settings", "settings"}, {"API keys", "keys"}, {"Files", "files"}]
+          {title, tab} <- [
+            {"Settings", "settings"},
+            {"API keys", "keys"},
+            {"Files", "files"},
+            {"Usage & recovery", "usage"}
+          ]
         }
         patch={~p"/dashboard/applications/#{@selected_app.id}?tab=#{tab}"}
         variant={if @tab == tab, do: "secondary", else: "ghost"}
         aria-current={if @tab == tab, do: "page"}
       >{title}</.button>
     </nav>
-    <.card :if={@tab not in ["keys", "files"]} class="p-7">
+    <section :if={@tab == "usage" && @app_insights} id="application-usage" class="space-y-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-semibold">Usage &amp; recovery</h2><p class="mt-1 text-sm text-muted-foreground">
+            Live storage records for this application. Updates every 3 seconds.
+          </p>
+        </div><.button
+          patch={~p"/dashboard/applications/#{@selected_app.id}?tab=files"}
+          variant="outline"
+        >Open files</.button>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <.card class="p-5">
+          <p class="text-sm text-muted-foreground">Stored files</p><p
+            id="usage-file-count"
+            class="mt-2 text-2xl font-semibold"
+          >
+            {@app_insights.metrics.files}
+          </p>
+        </.card>
+        <.card class="p-5">
+          <p class="text-sm text-muted-foreground">Originals</p><p
+            id="usage-original-bytes"
+            class="mt-2 text-2xl font-semibold"
+          >
+            {format_bytes(@app_insights.metrics.original_bytes)}
+          </p>
+        </.card>
+        <.card class="p-5">
+          <p class="text-sm text-muted-foreground">Generated previews</p><p
+            id="usage-variant-bytes"
+            class="mt-2 text-2xl font-semibold"
+          >
+            {format_bytes(@app_insights.metrics.variant_bytes)}
+          </p>
+        </.card>
+        <.card class="p-5">
+          <p class="text-sm text-muted-foreground">Reserved bytes</p><p
+            id="usage-reserved-bytes"
+            class="mt-2 text-2xl font-semibold"
+          >
+            {format_bytes(@app_insights.metrics.reserved_bytes)}
+          </p>
+        </.card>
+      </div>
+      <.card class="p-5">
+        <h3 class="font-semibold">Processing &amp; cleanup</h3><div class="mt-3 flex flex-wrap gap-3 text-sm">
+          <.badge id="usage-image-pending">
+            {@app_insights.metrics.image_pending} images queued / processing
+          </.badge><.badge id="usage-image-failed">
+            {@app_insights.metrics.image_failed} image failures
+          </.badge><.badge id="usage-cleanup-pending">
+            {@app_insights.metrics.cleanup_pending} awaiting recovery
+          </.badge><.badge>{@app_insights.metrics.upload_pending} pending uploads</.badge>
+        </div><p class="mt-3 text-xs text-muted-foreground">
+          These are your file lifecycle states. Originals and ready previews count toward the shared account quota; reservations remain until confirmed cleanup.
+        </p>
+      </.card>
+      <.card class="p-5">
+        <h3 class="font-semibold">Needs attention</h3><p
+          :if={@app_insights.issues == []}
+          id="usage-no-issues"
+          class="mt-3 text-sm text-muted-foreground"
+        >
+          No file issues need attention.
+        </p><p :if={@app_insights.issues != []} class="mt-2 text-xs text-muted-foreground">
+          Showing up to 25 oldest issues. Automatic recovery also runs in the background.
+        </p><div id="storage-issues" class="mt-3 divide-y divide-border">
+          <div
+            :for={issue <- @app_insights.issues}
+            id={"storage-issue-#{issue.id}"}
+            class="flex flex-wrap items-center justify-between gap-3 py-4"
+          >
+            <div class="min-w-0">
+              <p class="break-all text-sm font-medium">{issue.filename}</p><p class="mt-1 text-sm">
+                {issue.kind}
+              </p><p class="mt-1 max-w-2xl text-xs text-muted-foreground">{issue.message}</p><p class="mt-1 text-xs text-muted-foreground">
+                Cleanup attempts: {issue.attempts}
+              </p>
+            </div><.button
+              type="button"
+              variant="outline"
+              phx-click="retry_storage_issue"
+              phx-value-id={issue.id}
+              phx-disable-with="Queueing…"
+            >Retry recovery</.button>
+          </div>
+        </div>
+      </.card>
+      <.card id="operations-guidance" class="p-5">
+        <h3 class="font-semibold">Before production</h3><p class="mt-2 text-sm text-muted-foreground">
+          Back up PostgreSQL, persistent local files and your encryption keys separately. Keep S3 bucket backups/versioning with your storage provider. Restore into an isolated environment before relying on a backup.
+        </p><p class="mt-2 text-xs text-muted-foreground">
+          Backups are operator-managed and cannot be created here. Ask your server operator when the last restore was tested.
+        </p>
+      </.card>
+    </section>
+    <.card :if={@tab == "settings"} class="p-7">
       <h2 class="mb-5 text-lg font-semibold">Application settings</h2>
       <.form
         for={to_form(%{}, as: :application)}

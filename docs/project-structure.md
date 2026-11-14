@@ -93,3 +93,5 @@ Checks: `mix precommit`, `mix assets.build`, `mix ash.codegen --check`, and
 Storage quotas and native image workers are described in [storage reliability and images](storage-reliability-images.md), including a code map and deployment requirements.
 
 File-browser components live in `lib/app_web/features/files/file_components.ex`; bounded bulk services live in `lib/app/storage/file_management.ex`, and clipboard behavior lives in `assets/js/clipboard.mjs`. See [file management](file-management.md).
+
+Usage queries and recovery requests live in `lib/app/storage/insights.ex`; their UI is the dashboard Usage & recovery tab. Generic probes live in `lib/app_web/health_controller.ex`. Operator tools are in `scripts/`; see [operations](operations.md).

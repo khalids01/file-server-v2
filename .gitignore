@@ -43,3 +43,6 @@ npm-debug.log
 
 # Private local file storage
 /storage/
+
+# Operator backups must never be committed
+/backups/

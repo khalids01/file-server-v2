@@ -175,7 +175,7 @@ mix ash.codegen --check
 node --test test/js/*_test.mjs
 ```
 
-Verified: **115 Elixir tests + 16 JavaScript tests**, warnings-as-errors app
+Verified: **121 Elixir tests + 16 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, application ownership isolation, bans, key revocation and persisted
@@ -246,3 +246,5 @@ Run `mix ecto.migrate` after pulling to add empty tags to existing files.
 Image previews require Python 3 and Elixir/Erlang on the runtime PATH. After pulling, run `mix deps.get` and `mix ecto.migrate` before starting Phoenix. [Quota and image guide](docs/storage-reliability-images.md).
 
 The Files dashboard now includes grid/list views, file details, current-page selection, bulk delete/tag editing, private-link copying and per-file upload outcomes. See [the file management guide](docs/file-management.md). V2 is developed independently; no v1 SDK compatibility layer is planned.
+
+Applications now include a live **Usage & recovery** tab, with storage totals, processing/cleanup issues and queued recovery actions. Account and application summaries use server records. Operators: [monitoring, backup and restore guide](docs/operations.md). Sharing is deferred; no public links were added.

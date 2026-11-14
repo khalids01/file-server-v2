@@ -4,6 +4,9 @@ defmodule AppWeb.Router do
   use AshAuthentication.Phoenix.Router
   import AshAuthentication.Plug.Helpers, only: [set_actor: 2]
 
+  get "/health/live", AppWeb.HealthController, :live
+  get "/health/ready", AppWeb.HealthController, :ready
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -95,6 +98,7 @@ defmodule AppWeb.Router do
     get "/files/:id", FileApiController, :show
     patch "/files/:id", FileApiController, :update
     delete "/files/:id", FileApiController, :delete
+    get "/application/usage", ApplicationApiController, :usage
     get "/application", ApplicationApiController, :show
   end
 

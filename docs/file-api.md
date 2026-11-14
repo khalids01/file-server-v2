@@ -126,3 +126,7 @@ tags milestone is API/dashboard-only and does not claim v1 SDK tag compatibility
 ## Private image variants
 
 Metadata includes `processingState`, `processingError` and ready `variants` (`name`, `width`, `height`, `contentType`, `sizeBytes`, `url`). `GET /api/v2/files/:id/variants/:name` requires `files:read` on the same application and returns inline WebP/JPEG with private, no-store caching. Supported names are `thumbnail`, `display_webp`, `display_jpeg`. Original downloads remain unchanged. Uploads over the shared account quota return 413 `QUOTA_EXCEEDED`; failed physical deletions return 503 and retain accounting for durable cleanup. See [storage/image limits](storage-reliability-images.md).
+
+## Application usage
+
+`GET /api/v2/application/usage` requires `files:read` and accepts no query parameters. Returns `data.applicationId`, `files`, `originalBytes`, `previewBytes`, `reservedBytes`, `imagePending`, `imageFailed`, `cleanupPending`, and `pendingUploads`. Values are scoped to the credential application; account quota and other applications are excluded. See [operations](operations.md) for lifecycle meanings.

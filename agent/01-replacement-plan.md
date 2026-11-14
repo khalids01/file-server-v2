@@ -8,7 +8,7 @@ User → Applications → Files, storage settings and scoped server API keys. No
 
 Already delivered: landing/auth/admin, application dashboard, private local/S3 storage, scoped v2 file API, tags/search/pagination, account quotas, durable jobs/recovery, and isolated image variants. See [status](status.md) and [image/storage guide](../docs/storage-reliability-images.md).
 
-## 1. File management experience — current milestone
+## 1. File management experience — delivered
 
 - URL-persisted grid/list views with private thumbnails and useful nonimage placeholders.
 - File details with preview, dimensions, size/type/date, tags, storage and download.
@@ -20,17 +20,17 @@ Already delivered: landing/auth/admin, application dashboard, private local/S3 s
 
 Gate: existing tests and new interaction/access-boundary tests pass; no secrets or object keys enter UI responses. Run mix precommit, assets.build, Ash schema checks and JS tests.
 
-## 2. Controlled sharing
+## 2. Controlled sharing — deferred, optional
 
-Add explicit expiring/revocable share links with narrow file scope, hashed tokens, access limits and clear owner controls. Keep private defaults. Design access rules and tests before exposing public content. Do not turn authenticated download URLs into public links implicitly.
+Do not prioritize sharing without a concrete use case. If requested later, add explicit expiring/revocable share links with narrow file scope, hashed tokens, access limits and clear owner controls. Keep private defaults. Design access rules and tests before exposing public content. Do not turn authenticated download URLs into public links implicitly.
 
-## 3. Application visibility
+## 3. Application visibility — delivered in current milestone
 
-Application-level file/storage totals, processing and cleanup status, actionable failure messages, and useful usage/activity views. Build real queries and actions rather than placeholder charts.
+Application Usage & recovery tab, account/app summary cards, actual original/preview/reserved byte counts, processing and cleanup status, safe issue list and scoped retry controls. UI refreshes with server state; scoped usage API uses the same metrics. Broader activity/audit history remains optional follow-up.
 
-## 4. Operational reliability
+## 4. Operational reliability — foundation delivered; production checks remain
 
-Backup/restore rehearsal, resumable transfers, retention/trash policy, monitoring, deployment memory/disk limits, secret management, HTTPS, real-provider staging checks and documented recovery. Rehearse with disposable fixtures; never test destructively against live data.
+Operator backup tool and isolated PostgreSQL/local restore rehearsal, health endpoints and deployment/recovery runbook are delivered; see [operations](../docs/operations.md). Remaining work includes real-provider staging, scheduled/monitored production backups, resumable transfers, retention/trash policy, monitoring, deployment memory/disk limits, secret management, HTTPS, real-provider staging checks and documented recovery. Rehearse with disposable fixtures; never test destructively against live data.
 
 ## 5. Optional data import
 

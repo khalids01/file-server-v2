@@ -19,6 +19,8 @@ defmodule AppWeb.DashboardLive do
        file_tags_input: "",
        files: [],
        storage_usage: nil,
+       account_insights: nil,
+       app_insights: nil,
        file_search: "",
        file_view: "list",
        selected_files: MapSet.new(),
@@ -66,7 +68,10 @@ defmodule AppWeb.DashboardLive do
         socket
       end
 
-    tab = if params["tab"] in ["settings", "keys", "files"], do: params["tab"], else: "settings"
+    tab =
+      if params["tab"] in ["settings", "keys", "files", "usage"],
+        do: params["tab"],
+        else: "settings"
 
     socket =
       socket
@@ -111,7 +116,7 @@ defmodule AppWeb.DashboardLive do
   def handle_info(:refresh_file_processing, socket) do
     Process.send_after(self(), :refresh_file_processing, 3_000)
 
-    if socket.assigns.selected_app && socket.assigns.tab == "files" do
+    if socket.assigns.selected_app && socket.assigns.tab in ["files", "usage"] do
       socket = load_storage(socket)
 
       socket =
@@ -130,7 +135,38 @@ defmodule AppWeb.DashboardLive do
 
       {:noreply, socket}
     else
+      socket =
+        if socket.assigns.live_action in [:overview, :applications],
+          do: load_apps(socket),
+          else: socket
+
       {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "retry_storage_issue",
+        %{"id" => id},
+        %{assigns: %{selected_app: %{id: app_id}}} = socket
+      ) do
+    case App.Storage.Insights.retry(socket.assigns.current_user, app_id, id) do
+      :ok ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :info,
+           "Recovery queued. Status and storage usage will update after the worker finishes."
+         )
+         |> load_storage()
+         |> load_apps()}
+
+      _ ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Unable to queue recovery. The file may have changed or be unavailable."
+         )}
     end
   end
 
@@ -643,8 +679,11 @@ defmodule AppWeb.DashboardLive do
       |> Ash.read!(actor: socket.assigns.current_user)
       |> Enum.frequencies_by(& &1.application_id)
 
+    {:ok, insights} = App.Storage.Insights.account(socket.assigns.current_user)
+
     socket
     |> assign(
+      account_insights: insights,
       applications: apps,
       key_counts: counts,
       file_counts: App.Storage.counts(socket.assigns.current_user)
@@ -668,6 +707,8 @@ defmodule AppWeb.DashboardLive do
   defp load_storage(socket, opts \\ []) do
     actor = socket.assigns.current_user
     app_id = socket.assigns.selected_app.id
+    {:ok, insights} = App.Storage.Insights.application(actor, app_id)
+    socket = assign(socket, app_insights: insights)
 
     case App.Storage.files_page(actor, app_id,
            search: socket.assigns.file_search,
