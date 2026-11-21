@@ -11,6 +11,8 @@ defmodule AppWeb.UI.Sidebar do
     items = [
       {"Overview", "/dashboard", "hero-squares-2x2"},
       {"Applications", "/dashboard/applications", "hero-command-line"},
+      {"Files", "/dashboard/files", "hero-folder-open"},
+      {"Storage", "/dashboard/storage", "hero-circle-stack"},
       {"Profile", "/dashboard/profile", "hero-user-circle"}
     ]
 

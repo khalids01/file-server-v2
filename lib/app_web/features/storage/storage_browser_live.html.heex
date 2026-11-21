@@ -1,0 +1,77 @@
+<Layouts.app flash={@flash} current_user={@current_user} section="Storage">
+  <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-bold">Storage</h1><p class="mt-2 text-sm text-muted-foreground">
+        Browse your applications’ private local drives and S3 buckets.
+      </p>
+    </div>
+    <.button navigate={~p"/dashboard/files"} variant="outline">Manage files</.button>
+  </div>
+  <p class="mb-6 text-sm text-muted-foreground">
+    Browsing is read-only and limited to each application’s v2 namespace. Connect or test S3 storage in application settings.
+  </p>
+  <p :if={@error} id="storage-browser-error" role="alert" class="mb-4 text-destructive">
+    {@error}
+  </p>
+  <div :if={!@drive_id} id="storage-drives" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <p :if={@drives == []} id="storage-drives-empty">
+      Create an application to start using storage.
+    </p>
+    <.card :for={drive <- @drives} id={"storage-drive-#{drive.id}"} class="min-w-0 p-6">
+      <h2 class="break-all font-semibold">{drive.name}</h2>
+      <p class="my-3 break-all text-sm text-muted-foreground">
+        {drive.application_name} · {if drive.type == :local, do: "Local", else: "S3-compatible"}
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <.button navigate={browse_path(drive.id, "")}>Browse</.button><.button
+          navigate={~p"/dashboard/applications/#{drive.application_id}"}
+          variant="outline"
+        >Storage settings</.button>
+      </div>
+    </.card>
+  </div>
+  <.card :if={@drive_id} class="p-5 sm:p-7">
+    <div class="mb-5 flex flex-wrap gap-3">
+      <.button navigate={~p"/dashboard/storage"} variant="outline">All drives</.button><.button
+        :if={@prefix != ""}
+        patch={browse_path(@drive_id, parent(@prefix))}
+        variant="outline"
+        id="storage-up"
+      >Up</.button><.button
+        phx-click="refresh"
+        phx-disable-with="Refreshing…"
+        variant="outline"
+        id="storage-refresh"
+      >Refresh</.button>
+    </div>
+    <p :if={@loading} id="storage-loading" role="status">Loading objects…</p>
+    <div :if={@page}>
+      <h2 class="break-all font-semibold">{@page.drive.name} · {@page.drive.application_name}</h2>
+      <p class="my-3 break-all text-sm text-muted-foreground">/{@page.prefix}</p>
+      <p :if={@page.entries == []} id="storage-objects-empty">No objects in this folder.</p>
+      <div id="storage-objects" class="divide-y divide-border">
+        <div
+          :for={entry <- @page.entries}
+          class="flex min-w-0 flex-wrap items-center justify-between gap-3 py-3"
+        >
+          <.link
+            :if={entry.type == :folder}
+            patch={browse_path(@drive_id, @prefix <> entry.name)}
+            class="break-all text-primary underline"
+          >{entry.name}</.link>
+          <span :if={entry.type == :file} class="min-w-0 break-all text-sm">{entry.name}</span>
+          <span class="text-xs text-muted-foreground">{if entry.type == :file,
+            do: "#{entry.size} bytes",
+            else: "Folder"}</span>
+        </div>
+      </div>
+      <.button
+        :if={@page.next_cursor}
+        id="storage-next"
+        patch={browse_path(@drive_id, @prefix, @page.next_cursor)}
+        variant="outline"
+        class="mt-5"
+      >Next page</.button>
+    </div>
+  </.card>
+</Layouts.app>

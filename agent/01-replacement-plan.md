@@ -20,6 +20,10 @@ Already delivered: landing/auth/admin, application dashboard, private local/S3 s
 
 Gate: existing tests and new interaction/access-boundary tests pass; no secrets or object keys enter UI responses. Run mix precommit, assets.build, Ash schema checks and JS tests.
 
+Global navigation now includes Files (cross-application private management) and Storage
+(read-only physical local/S3 browsing within each application namespace). Global
+connection reuse, imports, transfers and backup management remain separate work.
+
 ## 2. Controlled sharing — deferred, optional
 
 Do not prioritize sharing without a concrete use case. If requested later, add explicit expiring/revocable share links with narrow file scope, hashed tokens, access limits and clear owner controls. Keep private defaults. Design access rules and tests before exposing public content. Do not turn authenticated download URLs into public links implicitly.

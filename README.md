@@ -89,7 +89,9 @@ resolve by their stable provider ID. Provider access/refresh tokens are discarde
 ## Dashboard and operator tools
 
 - `/dashboard`: application and API-key overview.
-- `/dashboard/applications`: v1-style application cards, empty state and creation dialog.
+- `/dashboard/applications`: application cards, empty state and creation dialog.
+- `/dashboard/files`: global private file manager across your applications.
+- `/dashboard/storage`: read-only local/S3 object browser within your v2 namespaces.
 - `/dashboard/applications/:id`: application name/settings; `?tab=keys` manages scoped,
   thirty-day keys; `?tab=files` uploads, lists, downloads and deletes private files.
 - `/dashboard/profile`: full-width profile editor; GitHub or email-code sign-in.
@@ -148,7 +150,8 @@ after backend changes, without recurring dashboard polling.
   credentials. For custom/private MinIO hosts, explicitly set comma-separated
   `S3_ALLOWED_HOSTS` on the server. HTTP is permitted only for those explicit hosts.
 
-Buckets must already exist. Credentials need object Put/Get/Delete permissions.
+Buckets must already exist. Upload/download/delete credentials need object Put/Get/Delete permissions.
+The Storage browser additionally needs bucket ListBucket permission for the application prefix.
 **Test current storage** writes, checks and deletes a tiny object in the app's
 namespace; it does not list or import existing bucket contents. Changing the
 default destination affects new uploads only. Existing files retain their
@@ -176,7 +179,7 @@ mix ash.codegen --check
 node --test test/js/*_test.mjs
 ```
 
-Verified: **128 Elixir tests + 16 JavaScript tests**, warnings-as-errors app
+Verified: **147 Elixir tests + 16 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, application ownership isolation, bans, key revocation and persisted

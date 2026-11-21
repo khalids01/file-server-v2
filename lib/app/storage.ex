@@ -38,6 +38,7 @@ defmodule App.Storage do
 
   def image_max_header_bytes, do: 50 * 1024 * 1024
 
+  @nil_uuid "00000000-0000-0000-0000-000000000000"
   @max_tags 20
   @max_tag_length 64
   @max_tag_bytes 256
@@ -117,6 +118,44 @@ defmodule App.Storage do
   def files_per_page, do: @file_per_page
 
   def files_page(actor, app_id, opts \\ []) do
+    StoredFile
+    |> Ash.Query.filter(application_id == ^app_id and status == "ready")
+    |> paginate_files(actor, opts)
+  end
+
+  @doc """
+  Owner-scoped files across all of the actor's applications.
+
+  This is the explicit global entry point. Optional `:application_id` narrows the
+  listing to a single application owned by the actor. It never widens the existing
+  application-scoped `files_page/3` API.
+  """
+  def global_files_page(actor, opts \\ []) do
+    if is_nil(actor) do
+      {:error, :unauthorized}
+    else
+      query =
+        StoredFile
+        |> Ash.Query.filter(user_id == ^actor.id and status == "ready")
+        |> filter_application(Keyword.get(opts, :application_id))
+
+      query
+      |> paginate_files(actor, opts, [:variants, :application])
+    end
+  end
+
+  defp filter_application(query, nil), do: query
+
+  defp filter_application(query, app_id) when is_binary(app_id) do
+    case Ecto.UUID.cast(app_id) do
+      {:ok, id} -> Ash.Query.filter(query, application_id == ^id)
+      :error -> Ash.Query.filter(query, application_id == ^@nil_uuid)
+    end
+  end
+
+  defp filter_application(query, _), do: Ash.Query.filter(query, application_id == ^@nil_uuid)
+
+  defp paginate_files(query, actor, opts, load_fields \\ [:variants]) do
     search = normalize_search(Keyword.get(opts, :search))
 
     case validate_tags_filter(Keyword.get(opts, :tags)) do
@@ -127,7 +166,6 @@ defmodule App.Storage do
             else: "newest"
 
         page = normalize_page(Keyword.get(opts, :page))
-        query = StoredFile |> Ash.Query.filter(application_id == ^app_id and status == "ready")
 
         query =
           if search == "", do: query, else: Ash.Query.filter(query, contains(filename, ^search))
@@ -153,7 +191,7 @@ defmodule App.Storage do
           |> Ash.Query.sort(@file_sorts[sort])
           |> Ash.Query.offset((page - 1) * @file_per_page)
           |> Ash.Query.limit(@file_per_page)
-          |> Ash.Query.load(:variants)
+          |> Ash.Query.load(load_fields)
           |> Ash.read!(actor: actor)
 
         %{

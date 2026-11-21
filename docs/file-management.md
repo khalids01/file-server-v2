@@ -22,3 +22,35 @@ Drag files onto the upload area or choose up to five files. Each entry shows pro
 - `assets/js/clipboard.mjs`: clipboard hook and honest success/failure feedback.
 
 This milestone adds no dependencies or database migrations. Visual browser QA was unavailable in this environment; LiveView, service and JavaScript tests cover behavior and access boundaries. Expiring public sharing is a separate future milestone in the [active roadmap](../agent/01-replacement-plan.md).
+
+
+## Global Files and Storage
+
+The sidebar **Files** page (`/dashboard/files`) lists private ready files across
+your applications, with an application filter, search, tags, sorting, pagination,
+grid/list views, details, tag editing and confirmed deletion. Each mutation
+reauthorizes the file and uses its stored application ID. Private downloads and
+previews keep the same authentication rules. Upload and bulk tools remain on
+the application Files tab. Owner-scoped PubSub invalidations refresh open details
+and listings without recurring polling.
+
+The sidebar **Storage** page (`/dashboard/storage`) lists local namespaces and
+saved S3 connections grouped by application. Browse the physical objects,
+navigate folders, refresh, and follow pagination. Object names can be generated
+IDs; use Files for original filenames and metadata. This browser is read-only:
+it does not import, delete, or download untracked objects. Storage settings links
+lead to the existing application connection form and test action.
+
+Local browsing stays under the configured private root/user/application path and
+rejects symlinks and traversal. S3 uses signed ListObjectsV2 restricted to the
+server-derived user/application prefix, pages of up to 100 entries, URL-encoded
+keys and a bounded 1 MiB XML response. XML entities/DTDs are rejected and SAX
+parsing avoids creating atoms from provider element names. Bucket listing needs
+ListBucket permission; existing upload/download/delete permissions are separate.
+Neither v1 namespaces nor unrelated bucket objects are listed. These pages do
+not introduce globally reusable connection records or credential rotation.
+
+There are two access levels: regular users and operators (`operator: true`).
+Operators use `/dashboard/admin` to manage users and registration. That sidebar
+link is operator-only; promotion is explicit through `mix app.operator EMAIL`.
+Operator status does not grant access to another user's files or drives.

@@ -44,7 +44,7 @@ Remaining:
 - Production verification (HTTPS, DATABASE_URL, secrets, persistent vault key,
   real SMTP/GitHub credentials, no real buckets in automated tests).
 
-Verification: 128 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
+Verification: 147 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
 Real-bucket and browser visual checks remain unverified.
 
 ## Event-driven refresh and verification — 2026-11-21
@@ -84,3 +84,34 @@ Final verification: `mix precommit` passed (128 Elixir tests), 16 JavaScript tes
 passed, assets built, and `mix ash.codegen --check` passed. Disposable PostgreSQL
 was started for these checks and stopped afterward. Existing local config/dev.exs
 changes were preserved and excluded from the commit.
+
+
+## Global Files and Storage navigation — 2026-11-22
+
+Added sidebar Files and Storage routes. Global Files shares the existing scoped
+pagination/filtering implementation, adds an application filter and app labels,
+and supports private details/downloads, tag editing and confirmed deletion.
+PubSub updates reauthorize reads and refresh/close open details; navigation wins
+over pending refreshes. Upload/bulk management remains inside each application.
+
+Storage catalogs each owned application's local namespace and existing S3
+connections, with read-only physical object/folder browsing and pagination.
+Connection creation/testing remains in application settings, linked from cards.
+S3 listing is prefix-scoped, signed and bounded; provider XML uses SAX with
+DTD/entity rejection. Local paths reject symlinks and traversal. No raw-object
+mutations, v1 access or real provider calls were performed.
+
+Roles remain regular user and operator; `/dashboard/admin` and its sidebar link
+are operator-only. Operators do not gain cross-user file/storage access.
+
+Command Code DeepSeek V4.1 Flash implemented Global Files and its review fixes
+(14 focused tests passed) and drafted S3 listing. The storage run spent excessive
+time in discovery and reached its narrowed turn cap; Codex reviewed/corrected
+parsing and completed browser integration/security tests. Full checks recorded
+below. Browser access host remains unavailable; real iDrive verification pending.
+
+Final checks passed: `mix precommit` (147 Elixir tests), 16 JavaScript tests,
+`mix assets.build`, `mix ash.codegen --check`, and `git diff --check`. Tests used
+only disposable PostgreSQL on localhost:5434, temporary local files and Req.Test
+S3 responses. The disposable DB was stopped afterward; existing config/dev.exs
+changes remain local and excluded from the milestone commit.

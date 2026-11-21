@@ -119,6 +119,9 @@ defmodule AppWeb.Router do
       live "/dashboard", DashboardLive, :overview
       live "/dashboard/applications", DashboardLive, :applications
       live "/dashboard/applications/:id", DashboardLive, :application
+      live "/dashboard/storage", StorageBrowserLive, :index
+      live "/dashboard/storage/:id", StorageBrowserLive, :browse
+      live "/dashboard/files", GlobalFilesLive, :index
       live "/dashboard/profile", DashboardLive, :profile
       live "/dashboard/admin", OperatorLive, :index
     end
