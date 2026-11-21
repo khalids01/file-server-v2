@@ -36,6 +36,38 @@ defmodule AppWeb.StorageInsightsTest do
     %{owner: owner, app: app, other: other, a: a, b: b, root: root, source: source, login: login}
   end
 
+  test "idle refresh backs off, active images refresh quickly, and settings stop polling", c do
+    {:ok, view, _} = live(c.login, "/dashboard/applications/#{c.app.id}?tab=files")
+    {idle_ref, idle_token} = :sys.get_state(view.pid).socket.assigns.refresh_timer
+    assert Process.read_timer(idle_ref) in 20_000..30_000
+
+    # Work started outside this LiveView is discovered on the next idle refresh.
+    {:ok, img} = Storage.upload(c.owner, c.app.id, c.source, "pending.png", "image/png")
+    send(view.pid, {:refresh_file_processing, idle_token})
+    _ = render(view)
+    {active_ref, active_token} = :sys.get_state(view.pid).socket.assigns.refresh_timer
+    assert Process.read_timer(active_ref) in 1..3_000
+    assert Process.read_timer(idle_ref) == false
+
+    assert :ok = Storage.process_image(img.id)
+    send(view.pid, {:refresh_file_processing, active_token})
+    _ = render(view)
+    {settled_ref, _} = :sys.get_state(view.pid).socket.assigns.refresh_timer
+    assert Process.read_timer(settled_ref) in 20_000..30_000
+
+    render_patch(view, "/dashboard/applications/#{c.app.id}?tab=settings")
+    assert :sys.get_state(view.pid).socket.assigns.refresh_timer == nil
+    assert Process.read_timer(settled_ref) == false
+    # An already delivered tick cannot restart polling after navigation.
+    send(view.pid, {:refresh_file_processing, active_token})
+    _ = render(view)
+    assert :sys.get_state(view.pid).socket.assigns.refresh_timer == nil
+
+    render_patch(view, "/dashboard/applications/#{c.app.id}?tab=usage")
+    {ref, _} = :sys.get_state(view.pid).socket.assigns.refresh_timer
+    assert Process.read_timer(ref) in 20_000..30_000
+  end
+
   test "totals are scoped, include actual variants, and avoid multiplying originals", c do
     image_path = Path.join(c.root, "image.png")
     {:ok, image} = Image.new(64, 40, color: :red)

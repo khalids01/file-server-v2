@@ -46,3 +46,18 @@ Remaining:
 
 Verification: 121 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
 Real-bucket and browser visual checks remain unverified.
+
+## Idle dashboard query polish — 2026-11-21
+
+Traced recurring SQL to DashboardLive's unconditional three-second refresh timer,
+not a looping upload job. Connected overview/cards/Files/Usage now refresh every
+30 seconds when idle or awaiting recovery, and every three seconds for pending
+uploads/images. Local mutations reload immediately; settings/keys stop polling.
+Timers are replaced on reload/navigation and stale queued ticks are ignored.
+External API/session changes can take up to 30 seconds to appear. Polling remains
+intentional; event-driven synchronization is a possible future optimization.
+
+Verification: focused insights tests passed (7), including idle/active timer
+transitions, worker completion, navigation cancellation and restart. Full `mix precommit` passed (122 Elixir tests); asset build, Ash codegen check
+and 16 JavaScript tests passed. Fixed a PID-file publication race in the native
+supervisor test exposed during the first full run. Real-provider and browser visual QA remain pending.

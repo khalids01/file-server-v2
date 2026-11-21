@@ -26,7 +26,7 @@ Do not prioritize sharing without a concrete use case. If requested later, add e
 
 ## 3. Application visibility — delivered in current milestone
 
-Application Usage & recovery tab, account/app summary cards, actual original/preview/reserved byte counts, processing and cleanup status, safe issue list and scoped retry controls. UI refreshes with server state; scoped usage API uses the same metrics. Broader activity/audit history remains optional follow-up.
+Application Usage & recovery tab, account/app summary cards, actual original/preview/reserved byte counts, processing and cleanup status, safe issue list and scoped retry controls. UI refreshes with server state (three seconds for pending uploads/images, otherwise 30 seconds on visible data tabs; settings/keys do not poll); scoped usage API uses the same metrics. Broader activity/audit history remains optional follow-up.
 
 ## 4. Operational reliability — foundation delivered; production checks remain
 

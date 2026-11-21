@@ -7,10 +7,9 @@ defmodule AppWeb.DashboardLive do
   on_mount {AppWeb.LiveUserAuth, :live_user_required}
 
   def mount(_, _, socket) do
-    if connected?(socket), do: Process.send_after(self(), :refresh_file_processing, 3_000)
-
     {:ok,
      assign(socket,
+       refresh_timer: nil,
        plaintext_key: nil,
        selected_app: nil,
        revoking_key: nil,
@@ -109,13 +108,18 @@ defmodule AppWeb.DashboardLive do
            |> push_navigate(to: ~p"/dashboard/applications")}
       end
     else
-      {:noreply, socket}
+      {:noreply, schedule_refresh(socket)}
+    end
+  end
+
+  def handle_info({:refresh_file_processing, token}, socket) do
+    case socket.assigns.refresh_timer do
+      {_ref, ^token} -> handle_info(:refresh_file_processing, socket)
+      _ -> {:noreply, socket}
     end
   end
 
   def handle_info(:refresh_file_processing, socket) do
-    Process.send_after(self(), :refresh_file_processing, 3_000)
-
     if socket.assigns.selected_app && socket.assigns.tab in ["files", "usage"] do
       socket = load_storage(socket)
 
@@ -133,14 +137,14 @@ defmodule AppWeb.DashboardLive do
           socket
         end
 
-      {:noreply, socket}
+      {:noreply, schedule_refresh(socket)}
     else
       socket =
         if socket.assigns.live_action in [:overview, :applications],
           do: load_apps(socket),
           else: socket
 
-      {:noreply, socket}
+      {:noreply, schedule_refresh(socket)}
     end
   end
 
@@ -689,6 +693,7 @@ defmodule AppWeb.DashboardLive do
       file_counts: App.Storage.counts(socket.assigns.current_user)
     )
     |> stream(:applications, apps, reset: true)
+    |> schedule_refresh()
   end
 
   defp load_keys(socket) do
@@ -705,6 +710,10 @@ defmodule AppWeb.DashboardLive do
   end
 
   defp load_storage(socket, opts \\ []) do
+    socket |> do_load_storage(opts) |> schedule_refresh()
+  end
+
+  defp do_load_storage(socket, opts) do
     actor = socket.assigns.current_user
     app_id = socket.assigns.selected_app.id
     {:ok, insights} = App.Storage.Insights.application(actor, app_id)
@@ -785,6 +794,36 @@ defmodule AppWeb.DashboardLive do
         |> assign(file_tags: [], file_search: "", file_sort: "newest", file_page: 1)
         |> put_flash(:error, "Invalid file filters.")
         |> load_storage(Keyword.put(opts, :sync_url, true))
+    end
+  end
+
+  # One timer per connected page. Tokens discard ticks already queued when a
+  # navigation or local mutation cancels/replaces the previous timer.
+  defp schedule_refresh(socket) do
+    if socket.assigns.refresh_timer do
+      {ref, _token} = socket.assigns.refresh_timer
+      Process.cancel_timer(ref)
+    end
+
+    metrics =
+      cond do
+        socket.assigns.selected_app && socket.assigns.tab in ["files", "usage"] ->
+          socket.assigns.app_insights && socket.assigns.app_insights.metrics
+
+        socket.assigns.live_action in [:overview, :applications] ->
+          socket.assigns.account_insights && socket.assigns.account_insights.totals
+
+        true ->
+          nil
+      end
+
+    if connected?(socket) && metrics do
+      delay = if metrics.image_pending > 0 or metrics.upload_pending > 0, do: 3_000, else: 30_000
+      token = make_ref()
+      ref = Process.send_after(self(), {:refresh_file_processing, token}, delay)
+      assign(socket, refresh_timer: {ref, token})
+    else
+      assign(socket, refresh_timer: nil)
     end
   end
 

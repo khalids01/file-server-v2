@@ -10,7 +10,8 @@ defmodule App.Storage.NativeSupervisorTest do
     with tempfile.TemporaryDirectory(prefix='serve-native-test-') as root:
       for mode in ('timeout','owner_exit'):
         pidfile=os.path.join(root,mode)
-        code='import os,time;open('+repr(pidfile)+',"w").write(str(os.getpid()));time.sleep(60)'
+        # Publish only after closing the file so the parent never reads an empty PID.
+        code='import os,time;f=open('+repr(pidfile+'.tmp')+',"w");f.write(str(os.getpid()));f.close();os.rename('+repr(pidfile+'.tmp')+','+repr(pidfile)+');time.sleep(60)'
         worker=subprocess.Popen([sys.executable,supervisor,'400' if mode=='timeout' else '60000',sys.executable,'-c',code],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
         deadline=time.monotonic()+5
         while not os.path.exists(pidfile):

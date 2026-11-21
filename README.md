@@ -175,7 +175,7 @@ mix ash.codegen --check
 node --test test/js/*_test.mjs
 ```
 
-Verified: **121 Elixir tests + 16 JavaScript tests**, warnings-as-errors app
+Verified: **122 Elixir tests + 16 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, application ownership isolation, bans, key revocation and persisted
