@@ -44,7 +44,7 @@ Remaining:
 - Production verification (HTTPS, DATABASE_URL, secrets, persistent vault key,
   real SMTP/GitHub credentials, no real buckets in automated tests).
 
-Verification: 147 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
+Verification: 150 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
 Real-bucket and browser visual checks remain unverified.
 
 ## Event-driven refresh and verification — 2026-11-21
@@ -115,3 +115,19 @@ Final checks passed: `mix precommit` (147 Elixir tests), 16 JavaScript tests,
 only disposable PostgreSQL on localhost:5434, temporary local files and Req.Test
 S3 responses. The disposable DB was stopped afterward; existing config/dev.exs
 changes remain local and excluded from the milestone commit.
+
+
+## Storage connection creation entry point — 2026-11-22
+
+Added a prominent Connect S3 storage button and creation dialog directly to the
+Storage page. The form selects an owned application, reuses the existing encrypted
+connection service, and immediately shows the saved drive. Public fields survive
+validation errors; credentials are not retained in form assigns or rendered back.
+An empty account gets an application-creation link. Saving does not contact the
+provider or change the default upload destination; application settings still
+provide destination selection and connection testing. Added three LiveView tests
+for successful encrypted creation, invalid/foreign-app rejection and empty state.
+
+Verified: 150 Elixir tests through `mix precommit`, 16 JavaScript tests, asset
+build and Ash codegen check passed. Used only disposable PostgreSQL and fixture
+credentials; no provider access. Browser visual verification remains unavailable.

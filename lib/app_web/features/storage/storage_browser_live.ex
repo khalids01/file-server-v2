@@ -8,6 +8,9 @@ defmodule AppWeb.StorageBrowserLive do
 
     {:ok,
      assign(socket,
+       show_storage: false,
+       storage_error: nil,
+       storage_form: to_form(%{}, as: :storage),
        refresh_pending: nil,
        drives: [],
        page: nil,
@@ -37,6 +40,69 @@ defmodule AppWeb.StorageBrowserLive do
 
       _ ->
         {:noreply, assign(socket, error: "Storage is unavailable.")}
+    end
+  end
+
+  def handle_event("new_storage", _, socket) do
+    apps = Enum.filter(socket.assigns.drives, &(&1.type == :local))
+
+    app_id =
+      case apps do
+        [app] -> app.application_id
+        _ -> ""
+      end
+
+    {:noreply,
+     assign(socket,
+       show_storage: true,
+       storage_error: nil,
+       storage_form: to_form(%{"application_id" => app_id}, as: :storage)
+     )}
+  end
+
+  def handle_event("close_storage", _, socket) do
+    {:noreply,
+     assign(socket,
+       show_storage: false,
+       storage_error: nil,
+       storage_form: to_form(%{}, as: :storage)
+     )}
+  end
+
+  def handle_event("create_storage", %{"storage" => attrs}, socket) when is_map(attrs) do
+    case App.Storage.create_connection(
+           socket.assigns.current_user,
+           attrs["application_id"],
+           attrs
+         ) do
+      {:ok, _connection} ->
+        {:ok, drives} = Browser.drives(socket.assigns.current_user)
+
+        {:noreply,
+         socket
+         |> assign(
+           drives: drives,
+           show_storage: false,
+           storage_error: nil,
+           storage_form: to_form(%{}, as: :storage)
+         )
+         |> put_flash(
+           :info,
+           "S3 connection saved. Choose it in application settings to use it for new uploads."
+         )}
+
+      {:error, reason} ->
+        values = Map.take(attrs, ~w(application_id name endpoint bucket region))
+
+        {:noreply,
+         assign(socket,
+           storage_form: to_form(values, as: :storage),
+           storage_error:
+             if(is_binary(reason),
+               do: reason,
+               else: "Unable to save the connection. Check its fields and application."
+             )
+         )}
     end
   end
 

@@ -5,10 +5,13 @@
         Browse your applications’ private local drives and S3 buckets.
       </p>
     </div>
-    <.button navigate={~p"/dashboard/files"} variant="outline">Manage files</.button>
+    <div class="flex flex-wrap gap-2">
+      <.button navigate={~p"/dashboard/files"} variant="outline">Manage files</.button>
+      <.button id="storage-connect-s3" phx-click="new_storage"><.icon name="hero-plus" />Connect S3 storage</.button>
+    </div>
   </div>
   <p class="mb-6 text-sm text-muted-foreground">
-    Browsing is read-only and limited to each application’s v2 namespace. Connect or test S3 storage in application settings.
+    Connect S3 storage here and browse your applications’ private storage. Object browsing is read-only; connection testing is available in application settings.
   </p>
   <p :if={@error} id="storage-browser-error" role="alert" class="mb-4 text-destructive">
     {@error}
@@ -74,4 +77,86 @@
       >Next page</.button>
     </div>
   </.card>
+  <.dialog
+    :if={@show_storage}
+    id="storage-connect-dialog"
+    title="Connect S3 storage"
+    description="Connect IDrive e2, Amazon S3, R2 or another S3-compatible provider. The bucket must already exist."
+  >
+    <div :if={!Enum.any?(@drives, &(&1.type == :local))} id="storage-connect-no-app">
+      <p class="mb-4 text-sm text-muted-foreground">
+        Create an application first to give this storage connection an owner application.
+      </p>
+      <.button navigate={~p"/dashboard/applications"}>Create an application</.button>
+      <.button variant="outline" phx-click="close_storage">Cancel</.button>
+    </div>
+    <.form
+      :if={Enum.any?(@drives, &(&1.type == :local))}
+      for={@storage_form}
+      id="storage-connect-form"
+      phx-submit="create_storage"
+      class="space-y-4"
+    >
+      <p
+        :if={@storage_error}
+        id="storage-connect-error"
+        role="alert"
+        class="text-sm text-destructive"
+      >
+        {@storage_error}
+      </p>
+      <.input
+        field={@storage_form[:application_id]}
+        type="select"
+        label="Application"
+        required
+        options={[
+          {"Choose application", ""}
+          | for(
+              drive <- @drives,
+              drive.type == :local,
+              do: {drive.application_name, drive.application_id}
+            )
+        ]}
+      />
+      <.input
+        field={@storage_form[:name]}
+        label="Connection name"
+        placeholder="My IDrive bucket"
+        required
+        minlength="2"
+        maxlength="80"
+      />
+      <.input
+        field={@storage_form[:endpoint]}
+        label="Endpoint"
+        placeholder="https://s3.ap-northeast-1.idrivee2.com"
+        required
+      />
+      <div class="grid gap-4 sm:grid-cols-2">
+        <.input field={@storage_form[:bucket]} label="Bucket" required />
+        <.input
+          field={@storage_form[:region]}
+          label="Region"
+          placeholder="ap-northeast-1"
+          required
+        />
+      </div>
+      <.input name="storage[access_key_id]" label="Access key ID" autocomplete="off" required />
+      <.input
+        name="storage[secret_access_key]"
+        label="Secret access key"
+        type="password"
+        autocomplete="off"
+        required
+      />
+      <p class="text-sm text-muted-foreground">
+        Credentials are encrypted. Saving adds the connection here; choose it in application settings to use it for new uploads. Path-style requests are used.
+      </p>
+      <div class="flex justify-end gap-2">
+        <.button type="button" variant="outline" phx-click="close_storage">Cancel</.button>
+        <.button id="storage-save-connection" phx-disable-with="Saving…">Save connection</.button>
+      </div>
+    </.form>
+  </.dialog>
 </Layouts.app>

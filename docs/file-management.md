@@ -38,8 +38,9 @@ The sidebar **Storage** page (`/dashboard/storage`) lists local namespaces and
 saved S3 connections grouped by application. Browse the physical objects,
 navigate folders, refresh, and follow pagination. Object names can be generated
 IDs; use Files for original filenames and metadata. This browser is read-only:
-it does not import, delete, or download untracked objects. Storage settings links
-lead to the existing application connection form and test action.
+it does not import, delete, or download untracked objects. Use **Connect S3 storage** to create a connection here for an owned application.
+Saving adds it to the drive catalog. Storage settings links let you select the
+connection for new uploads and run the existing connection test.
 
 Local browsing stays under the configured private root/user/application path and
 rejects symlinks and traversal. S3 uses signed ListObjectsV2 restricted to the

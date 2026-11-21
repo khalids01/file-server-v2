@@ -49,6 +49,76 @@ defmodule App.Storage.BrowserTest do
     %{root: root, owner: owner, app: app, stored_file: file, connection: connection, login: login}
   end
 
+  defp connection_attrs(app_id) do
+    %{
+      "application_id" => app_id,
+      "name" => "New IDrive storage",
+      "endpoint" => "https://s3.ap-northeast-1.idrivee2.com",
+      "region" => "ap-northeast-1",
+      "bucket" => "new-fixture",
+      "access_key_id" => "new-fixture-key",
+      "secret_access_key" => "new-fixture-secret"
+    }
+  end
+
+  test "Storage connects S3 directly and displays the saved connection without provider calls",
+       c do
+    {:ok, view, _} = live(c.login, "/dashboard/storage")
+    view |> element("#storage-connect-s3") |> render_click()
+    assert has_element?(view, "#storage-connect-form")
+    view |> form("#storage-connect-form", storage: connection_attrs(c.app.id)) |> render_submit()
+    refute has_element?(view, "#storage-connect-dialog")
+    connections = Storage.connections(c.owner, c.app.id)
+    connection = Enum.find(connections, &(&1.name == "New IDrive storage"))
+    assert connection
+    assert has_element?(view, "#storage-drive-#{connection.id}", "New IDrive storage")
+    assert has_element?(view, "#flash-info", "S3 connection saved")
+    refute render(view) =~ "new-fixture-key"
+    refute render(view) =~ "new-fixture-secret"
+    assert {:ok, plaintext} = App.Vault.decrypt(connection.credentials)
+    assert Jason.decode!(plaintext)["secret_access_key"] == "new-fixture-secret"
+
+    assert Ash.get!(App.Applications.Application, c.app.id, actor: c.owner).storage_connection_id ==
+             nil
+  end
+
+  test "Storage connection errors preserve public fields and reject foreign applications", c do
+    {:ok, view, _} = live(c.login, "/dashboard/storage")
+    view |> element("#storage-connect-s3") |> render_click()
+    attrs = Map.put(connection_attrs(c.app.id), "endpoint", "http://127.0.0.1")
+    view |> form("#storage-connect-form", storage: attrs) |> render_submit()
+    assert has_element?(view, "#storage-connect-error")
+    assert has_element?(view, "input[name='storage[name]'][value='New IDrive storage']")
+    refute render(view) =~ "new-fixture-secret"
+    outsider = user("connect-other-#{Ecto.UUID.generate()}@example.com")
+
+    other =
+      Ash.create!(App.Applications.Application, %{name: "Other", slug: "other"}, actor: outsider)
+
+    render_hook(view, "create_storage", %{"storage" => connection_attrs(other.id)})
+    assert has_element?(view, "#storage-connect-error")
+    assert Storage.connections(outsider, other.id) == []
+    assert length(Storage.connections(c.owner, c.app.id)) == 1
+    view |> element("#storage-connect-dialog button[phx-click='close_storage']") |> render_click()
+    refute has_element?(view, "#storage-connect-dialog")
+  end
+
+  test "Connect S3 is discoverable before the first application exists", c do
+    owner = user("connect-empty-#{Ecto.UUID.generate()}@example.com")
+
+    login =
+      build_conn()
+      |> init_test_session(%{})
+      |> AshAuthentication.Phoenix.Plug.store_in_session(owner)
+
+    {:ok, view, _} = live(login, "/dashboard/storage")
+    view |> element("#storage-connect-s3") |> render_click()
+    assert has_element?(view, "#storage-connect-no-app a[href='/dashboard/applications']")
+    refute has_element?(view, "#storage-connect-form")
+    render_hook(view, "create_storage", %{"storage" => connection_attrs(c.app.id)})
+    assert {:ok, []} = Browser.drives(owner)
+  end
+
   test "drive catalog and physical local listings stay owner scoped", c do
     {:ok, drives} = Browser.drives(c.owner)
     assert Enum.any?(drives, &(&1.id == c.connection.id))
