@@ -130,7 +130,8 @@ a destination and save, test it, or connect an S3-compatible bucket. **Files**
 supports uploads (five at a time), a private file browser with filename search,
 sortable views (newest, oldest, name, size) and paginated results (25 per page),
 private downloads and confirmed deletion. Filters and page persist in the
-`?tab=files` URL. Cards show actual file counts.
+`?tab=files` URL. Cards show actual file counts. Dashboard updates use owner-scoped PubSub notifications
+after backend changes, without recurring dashboard polling.
 
 - `LOCAL_STORAGE_PATH`: private upload root, default `storage/` under the project.
   In production use a writable persistent volume outside public/static assets.
@@ -175,7 +176,7 @@ mix ash.codegen --check
 node --test test/js/*_test.mjs
 ```
 
-Verified: **122 Elixir tests + 16 JavaScript tests**, warnings-as-errors app
+Verified: **128 Elixir tests + 16 JavaScript tests**, warnings-as-errors app
 compilation, assets and schema consistency. Coverage includes two-connection OTP
 consumption, failed mail revocation, TLS configuration, trusted/untrusted GitHub
 email linking, disabled routes, application ownership isolation, bans, key revocation and persisted

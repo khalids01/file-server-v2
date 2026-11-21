@@ -4,7 +4,8 @@ defmodule App.Storage.StoredFile do
     otp_app: :app,
     domain: App.Storage,
     data_layer: AshPostgres.DataLayer,
-    authorizers: [Ash.Policy.Authorizer]
+    authorizers: [Ash.Policy.Authorizer],
+    notifiers: [App.DashboardNotifier]
 
   postgres do
     table "stored_files"

@@ -44,20 +44,43 @@ Remaining:
 - Production verification (HTTPS, DATABASE_URL, secrets, persistent vault key,
   real SMTP/GitHub credentials, no real buckets in automated tests).
 
-Verification: 121 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
+Verification: 128 Elixir tests, 16 JavaScript tests, asset build and Ash schema checks.
 Real-bucket and browser visual checks remain unverified.
 
-## Idle dashboard query polish — 2026-11-21
+## Event-driven refresh and verification — 2026-11-21
 
-Traced recurring SQL to DashboardLive's unconditional three-second refresh timer,
-not a looping upload job. Connected overview/cards/Files/Usage now refresh every
-30 seconds when idle or awaiting recovery, and every three seconds for pending
-uploads/images. Local mutations reload immediately; settings/keys stop polling.
-Timers are replaced on reload/navigation and stale queued ticks are ignored.
-External API/session changes can take up to 30 seconds to appear. Polling remains
-intentional; event-driven synchronization is a possible future optimization.
+Recurring SQL came from DashboardLive polling every three seconds. An initial
+30-second idle backoff was superseded by owner-scoped Ash/Phoenix PubSub
+invalidations for files, applications, API keys and connections. Storage's
+existing post-transaction notification delivery is retained; a 25 ms one-shot
+debounce combines bursts. No recurring dashboard polling remains. Backend
+changes refresh private file details and usage; reads recheck active ownership.
+Multi-node deployments require Phoenix clustering. Direct SQL writes require a
+manual reload because they bypass resource notifications.
 
-Verification: focused insights tests passed (7), including idle/active timer
-transitions, worker completion, navigation cancellation and restart. Full `mix precommit` passed (122 Elixir tests); asset build, Ash codegen check
-and 16 JavaScript tests passed. Fixed a PID-file publication race in the native
-supervisor test exposed during the first full run. Real-provider and browser visual QA remain pending.
+Verified the image upload → generated preview → authenticated download → tags →
+failed delete → cleanup recovery workflow with real local files/native image
+processing and LiveView integration tests. Added a Node example client and a
+real loopback HTTP test with separate read/write/delete/revoked keys.
+
+Compared v1 S3 connection source without reading credentials or accessing data.
+V2 already supports dashboard-created encrypted iDrive e2 connections under
+Application → Settings → Connect S3 storage. V1 tests before saving; v2 saves,
+selects the destination, then offers Test current storage. Existing simulated
+S3 tests verify the dashboard flow and signed I/O. No new compatibility layer
+or provider feature was added.
+
+Browser tool returned "browser access host is unavailable"; desktop/mobile
+light/dark visual QA remains blocked. Real iDrive e2 testing awaits a dedicated
+test application and authorized isolated provider resources; no real bucket
+or v1 data was touched.
+
+Command Code DeepSeek V4.1 Flash wrote the example client/API documentation and
+ran syntax, missing-key and simulated-response checks. Its initial high-effort
+PubSub run produced no edits and was stopped; Codex implemented/reviewed PubSub
+and ran the real isolated workflow/API checks. Full verification recorded below.
+
+Final verification: `mix precommit` passed (128 Elixir tests), 16 JavaScript tests
+passed, assets built, and `mix ash.codegen --check` passed. Disposable PostgreSQL
+was started for these checks and stopped afterward. Existing local config/dev.exs
+changes were preserved and excluded from the commit.

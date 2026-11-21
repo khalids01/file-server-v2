@@ -7,9 +7,11 @@ defmodule AppWeb.DashboardLive do
   on_mount {AppWeb.LiveUserAuth, :live_user_required}
 
   def mount(_, _, socket) do
+    if connected?(socket), do: App.DashboardNotifier.subscribe(socket.assigns.current_user.id)
+
     {:ok,
      assign(socket,
-       refresh_timer: nil,
+       refresh_pending: nil,
        plaintext_key: nil,
        selected_app: nil,
        revoking_key: nil,
@@ -108,43 +110,71 @@ defmodule AppWeb.DashboardLive do
            |> push_navigate(to: ~p"/dashboard/applications")}
       end
     else
-      {:noreply, schedule_refresh(socket)}
+      {:noreply, socket}
     end
   end
 
-  def handle_info({:refresh_file_processing, token}, socket) do
-    case socket.assigns.refresh_timer do
-      {_ref, ^token} -> handle_info(:refresh_file_processing, socket)
-      _ -> {:noreply, socket}
-    end
-  end
-
-  def handle_info(:refresh_file_processing, socket) do
-    if socket.assigns.selected_app && socket.assigns.tab in ["files", "usage"] do
-      socket = load_storage(socket)
-
-      socket =
-        if socket.assigns.file_details do
-          case App.Storage.FileManagement.details(
-                 socket.assigns.current_user,
-                 socket.assigns.selected_app.id,
-                 socket.assigns.file_details.id
-               ) do
-            {:ok, file} -> assign(socket, file_details: file)
-            _ -> assign(socket, file_details: nil)
-          end
-        else
-          socket
-        end
-
-      {:noreply, schedule_refresh(socket)}
+  def handle_info(:dashboard_changed, socket) do
+    if socket.assigns.refresh_pending do
+      {:noreply, socket}
     else
-      socket =
-        if socket.assigns.live_action in [:overview, :applications],
-          do: load_apps(socket),
-          else: socket
+      token = make_ref()
+      Process.send_after(self(), {:refresh_dashboard, token}, 25)
+      {:noreply, assign(socket, refresh_pending: token)}
+    end
+  end
 
-      {:noreply, schedule_refresh(socket)}
+  def handle_info({:refresh_dashboard, token}, socket) do
+    if socket.assigns.refresh_pending == token do
+      socket = assign(socket, refresh_pending: nil)
+
+      case App.Accounts.active_user(socket.assigns.current_user) do
+        nil ->
+          {:noreply, redirect(socket, to: ~p"/sign-in")}
+
+        user ->
+          {:noreply, refresh_dashboard(assign(socket, current_user: user))}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp refresh_dashboard(socket) do
+    socket = load_apps(socket)
+
+    if socket.assigns.selected_app do
+      case Ash.get(Application, socket.assigns.selected_app.id,
+             actor: socket.assigns.current_user
+           ) do
+        {:ok, %Application{} = app} ->
+          socket =
+            socket
+            |> assign(selected_app: app)
+            |> load_keys()
+            |> load_storage(sync_url: socket.assigns.tab == "files")
+
+          if socket.assigns.file_details do
+            case App.Storage.FileManagement.details(
+                   socket.assigns.current_user,
+                   app.id,
+                   socket.assigns.file_details.id
+                 ) do
+              {:ok, file} -> assign(socket, file_details: file)
+              _ -> assign(socket, file_details: nil)
+            end
+          else
+            socket
+          end
+
+        _ ->
+          socket
+          |> assign(selected_app: nil, file_details: nil)
+          |> put_flash(:error, "Application not found")
+          |> push_navigate(to: ~p"/dashboard/applications")
+      end
+    else
+      socket
     end
   end
 
@@ -693,7 +723,6 @@ defmodule AppWeb.DashboardLive do
       file_counts: App.Storage.counts(socket.assigns.current_user)
     )
     |> stream(:applications, apps, reset: true)
-    |> schedule_refresh()
   end
 
   defp load_keys(socket) do
@@ -710,10 +739,6 @@ defmodule AppWeb.DashboardLive do
   end
 
   defp load_storage(socket, opts \\ []) do
-    socket |> do_load_storage(opts) |> schedule_refresh()
-  end
-
-  defp do_load_storage(socket, opts) do
     actor = socket.assigns.current_user
     app_id = socket.assigns.selected_app.id
     {:ok, insights} = App.Storage.Insights.application(actor, app_id)
@@ -794,36 +819,6 @@ defmodule AppWeb.DashboardLive do
         |> assign(file_tags: [], file_search: "", file_sort: "newest", file_page: 1)
         |> put_flash(:error, "Invalid file filters.")
         |> load_storage(Keyword.put(opts, :sync_url, true))
-    end
-  end
-
-  # One timer per connected page. Tokens discard ticks already queued when a
-  # navigation or local mutation cancels/replaces the previous timer.
-  defp schedule_refresh(socket) do
-    if socket.assigns.refresh_timer do
-      {ref, _token} = socket.assigns.refresh_timer
-      Process.cancel_timer(ref)
-    end
-
-    metrics =
-      cond do
-        socket.assigns.selected_app && socket.assigns.tab in ["files", "usage"] ->
-          socket.assigns.app_insights && socket.assigns.app_insights.metrics
-
-        socket.assigns.live_action in [:overview, :applications] ->
-          socket.assigns.account_insights && socket.assigns.account_insights.totals
-
-        true ->
-          nil
-      end
-
-    if connected?(socket) && metrics do
-      delay = if metrics.image_pending > 0 or metrics.upload_pending > 0, do: 3_000, else: 30_000
-      token = make_ref()
-      ref = Process.send_after(self(), {:refresh_file_processing, token}, delay)
-      assign(socket, refresh_timer: {ref, token})
-    else
-      assign(socket, refresh_timer: nil)
     end
   end
 

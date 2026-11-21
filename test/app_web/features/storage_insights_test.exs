@@ -36,36 +36,143 @@ defmodule AppWeb.StorageInsightsTest do
     %{owner: owner, app: app, other: other, a: a, b: b, root: root, source: source, login: login}
   end
 
-  test "idle refresh backs off, active images refresh quickly, and settings stop polling", c do
+  # Synchronize a real PubSub invalidation without sleeping for its debounce.
+  defp flush_dashboard(view) do
+    case :sys.get_state(view.pid).socket.assigns.refresh_pending do
+      nil -> :ok
+      token -> send(view.pid, {:refresh_dashboard, token})
+    end
+
+    render(view)
+  end
+
+  test "external storage changes update files and open details without polling", c do
     {:ok, view, _} = live(c.login, "/dashboard/applications/#{c.app.id}?tab=files")
-    {idle_ref, idle_token} = :sys.get_state(view.pid).socket.assigns.refresh_timer
-    assert Process.read_timer(idle_ref) in 20_000..30_000
-
-    # Work started outside this LiveView is discovered on the next idle refresh.
+    assert :sys.get_state(view.pid).socket.assigns.refresh_pending == nil
     {:ok, img} = Storage.upload(c.owner, c.app.id, c.source, "pending.png", "image/png")
-    send(view.pid, {:refresh_file_processing, idle_token})
-    _ = render(view)
-    {active_ref, active_token} = :sys.get_state(view.pid).socket.assigns.refresh_timer
-    assert Process.read_timer(active_ref) in 1..3_000
-    assert Process.read_timer(idle_ref) == false
-
+    flush_dashboard(view)
+    assert has_element?(view, "#file-details-#{img.id}")
+    view |> element("#file-details-#{img.id}") |> render_click()
     assert :ok = Storage.process_image(img.id)
-    send(view.pid, {:refresh_file_processing, active_token})
-    _ = render(view)
-    {settled_ref, _} = :sys.get_state(view.pid).socket.assigns.refresh_timer
-    assert Process.read_timer(settled_ref) in 20_000..30_000
+    {:ok, _} = Storage.update_tags(c.owner, c.app.id, img.id, ["external-update"])
+    flush_dashboard(view)
+    assert has_element?(view, "#file-details-dialog", "external-update")
+    assert has_element?(view, "#file-details-dialog", "failed")
+    assert :ok = Storage.delete(c.owner, img.id)
+    flush_dashboard(view)
+    refute has_element?(view, "#file-details-#{img.id}")
+    refute has_element?(view, "#file-details-dialog")
+    assert :sys.get_state(view.pid).socket.assigns.refresh_pending == nil
+  end
 
-    render_patch(view, "/dashboard/applications/#{c.app.id}?tab=settings")
-    assert :sys.get_state(view.pid).socket.assigns.refresh_timer == nil
-    assert Process.read_timer(settled_ref) == false
-    # An already delivered tick cannot restart polling after navigation.
-    send(view.pid, {:refresh_file_processing, active_token})
-    _ = render(view)
-    assert :sys.get_state(view.pid).socket.assigns.refresh_timer == nil
+  test "generated previews, private downloads, tags and cleanup recovery update the view", c do
+    path = Path.join(c.root, "workflow.png")
+    {:ok, image} = Image.new(64, 40, color: :red)
+    {:ok, _} = Image.write(image, path)
+    bytes = File.read!(path)
+    {:ok, view, _} = live(c.login, "/dashboard/applications/#{c.app.id}?tab=files")
+    {:ok, file} = Storage.upload(c.owner, c.app.id, path, "workflow.png", "image/png")
+    flush_dashboard(view)
+    view |> element("#file-details-#{file.id}") |> render_click()
+    assert :ok = Storage.process_image(file.id)
+    flush_dashboard(view)
 
+    assert has_element?(
+             view,
+             "#file-details-dialog img[src='/files/#{file.id}/variants/display_webp']"
+           )
+
+    assert has_element?(view, "#file-details-dialog", "64 × 40")
+    assert c.login |> get("/files/#{file.id}/download") |> response(200) == bytes
+    preview = c.login |> get("/files/#{file.id}/variants/display_webp")
+    assert response(preview, 200) != ""
+    assert get_resp_header(preview, "content-type") == ["image/webp"]
+    {:ok, _} = Storage.update_tags(c.owner, c.app.id, file.id, ["verified"])
+    flush_dashboard(view)
+    assert has_element?(view, "#file-details-dialog", "verified")
+    # A physical storage error must retain accounting until recovery succeeds.
+    {:ok, stored} = Storage.Local.path(file.object_key)
+    File.rm!(stored)
+    File.ln_s!("/nonexistent-workflow-fixture", stored)
+    assert {:error, _} = Storage.delete(c.owner, file.id)
+    flush_dashboard(view)
     render_patch(view, "/dashboard/applications/#{c.app.id}?tab=usage")
-    {ref, _} = :sys.get_state(view.pid).socket.assigns.refresh_timer
-    assert Process.read_timer(ref) in 20_000..30_000
+    assert has_element?(view, "#storage-issue-#{file.id}")
+    File.rm!(stored)
+    assert :ok = Storage.cleanup_delete(file.id)
+    flush_dashboard(view)
+    refute has_element?(view, "#storage-issue-#{file.id}")
+    assert c.login |> get("/files/#{file.id}/download") |> response(404)
+  end
+
+  test "owner topics isolate invalidations and bursts share one refresh", c do
+    {:ok, view, _} = live(c.login, "/dashboard")
+    outsider = user("pubsub-outsider@example.com")
+
+    Ash.create!(App.Applications.Application, %{name: "Private", slug: "private"},
+      actor: outsider
+    )
+
+    assert :sys.get_state(view.pid).socket.assigns.refresh_pending == nil
+
+    # Queue a burst in a single LiveView mailbox turn.
+    :sys.suspend(view.pid)
+    for _ <- 1..20, do: send(view.pid, :dashboard_changed)
+    :sys.resume(view.pid)
+    token = :sys.get_state(view.pid).socket.assigns.refresh_pending
+    assert is_reference(token)
+    flush_dashboard(view)
+    assert :sys.get_state(view.pid).socket.assigns.refresh_pending == nil
+    send(view.pid, {:refresh_dashboard, token})
+    _ = render(view)
+    assert :sys.get_state(view.pid).socket.assigns.refresh_pending == nil
+  end
+
+  test "external application and key changes refresh settings and keys", c do
+    {:ok, view, _} = live(c.login, "/dashboard/applications/#{c.app.id}?tab=keys")
+    {key, _} = App.Applications.issue_key!(c.owner, c.app.id, "External key", ["files:read"])
+    flush_dashboard(view)
+    assert has_element?(view, "#keys-#{key.id}", "External key")
+    Ash.update!(c.app, %{name: "External rename"}, actor: c.owner)
+    flush_dashboard(view)
+    render_patch(view, "/dashboard/applications/#{c.app.id}?tab=settings")
+
+    assert has_element?(
+             view,
+             "#application-settings input[name='application[name]'][value='External rename']"
+           )
+  end
+
+  test "invalidation rechecks banned users before refreshing private data", c do
+    {:ok, view, _} = live(c.login, "/dashboard")
+    App.Repo.query!("UPDATE users SET banned=true WHERE id=$1", [Ecto.UUID.dump!(c.owner.id)])
+    send(view.pid, :dashboard_changed)
+    token = :sys.get_state(view.pid).socket.assigns.refresh_pending
+    send(view.pid, {:refresh_dashboard, token})
+    assert_redirect(view, "/sign-in")
+  end
+
+  test "notifications contain only invalidation and failed writes do not notify", c do
+    :ok = App.DashboardNotifier.subscribe(c.owner.id)
+    {:ok, _} = Storage.update_tags(c.owner, c.app.id, c.a.id, ["committed"])
+    assert_receive :dashboard_changed
+    {:ok, fresh} = Ash.get(Storage.StoredFile, c.a.id, actor: c.owner)
+    assert fresh.tags == ["committed"]
+
+    assert {:error, :test_rollback} =
+             App.Repo.transaction(fn ->
+               {:ok, _} = Storage.update_tags(c.owner, c.app.id, c.a.id, ["rolled-back"])
+               refute_receive :dashboard_changed
+               App.Repo.rollback(:test_rollback)
+             end)
+
+    refute_receive :dashboard_changed
+    assert Ash.get!(Storage.StoredFile, c.a.id, actor: c.owner).tags == ["committed"]
+
+    assert {:error, _} =
+             Storage.upload(c.owner, c.app.id, c.source, "bad.txt", "text/plain", tags: [""])
+
+    refute_receive :dashboard_changed
   end
 
   test "totals are scoped, include actual variants, and avoid multiplying originals", c do
@@ -102,12 +209,12 @@ defmodule AppWeb.StorageInsightsTest do
     assert has_element?(view, "#flash-info", "Recovery queued")
     File.rm!(path)
     assert :ok = Storage.cleanup_delete(c.a.id)
-    send(view.pid, :refresh_file_processing)
+    flush_dashboard(view)
     assert has_element?(view, "#usage-file-count", "0")
     assert has_element?(view, "#usage-no-issues")
     assert has_element?(view, "#operations-guidance", "operator-managed")
     {:ok, _} = Storage.upload(c.owner, c.app.id, c.source, "new.txt", "text/plain")
-    send(view.pid, :refresh_file_processing)
+    flush_dashboard(view)
     assert has_element?(view, "#usage-file-count", "1")
   end
 
@@ -157,7 +264,7 @@ defmodule AppWeb.StorageInsightsTest do
     {:ok, view, _} = live(c.login, "/dashboard")
     assert has_element?(view, "#account-usage-summary", "2")
     assert :ok = Storage.delete(c.owner, c.a.id)
-    send(view.pid, :refresh_file_processing)
+    flush_dashboard(view)
     {:ok, account} = Insights.account(c.owner)
     assert account.totals.files == 1
     assert render(view) =~ "Account storage"

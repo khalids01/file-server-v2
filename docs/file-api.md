@@ -50,6 +50,32 @@ curl -X DELETE -H "Authorization: Bearer $SERVE_APPLICATION_KEY" \
   http://localhost:4000/api/v2/files/FILE_ID
 ```
 
+## Smoke client
+
+`scripts/file_api_smoke.mjs` is a dependency-free Node (built-in `fetch`) client that
+exercises upload, listing, download bytes, tag `PATCH`, scope denial and deletion
+against a running server. It bases the URL on `FILE_API_BASE_URL` (default
+`http://localhost:4000`) and reads keys only from the environment:
+
+```bash
+FILE_API_READ_KEY=... FILE_API_WRITE_KEY=... FILE_API_DELETE_KEY=... \
+  node scripts/file_api_smoke.mjs
+```
+
+- `FILE_API_READ_KEY`, `FILE_API_WRITE_KEY`, `FILE_API_DELETE_KEY` are required and
+  are never logged. `FILE_API_REVOKED_KEY` is optional; when set, the script also
+  asserts that it is rejected.
+- The run creates one uniquely named fixture, uploads it with the write key, checks
+  that the read key gets `403 INSUFFICIENT_SCOPE` for upload and delete, verifies
+  listing, downloaded bytes and patched tags, then deletes only that uploaded ID with
+  the delete key and confirms it is gone (`404 FILE_NOT_FOUND`).
+- Non-loopback base URLs are refused unless `FILE_API_ALLOW_REMOTE=1` is set. Keys are
+  sent as a single `Authorization: Bearer` header and never placed in URLs.
+- The module also exports `runSmoke(options)` for an isolated integration harness. It
+  accepts `baseUrl`, `readKey`, `writeKey`, `deleteKey`, optional `revokedKey`,
+  `allowRemote`, `fetchImpl`, `log` and `requestTimeoutMs`, and returns the completed
+  checks. A failure still attempts to remove the fixture it uploaded.
+
 Upload uses the application's current default local/S3 destination. Existing files
 retain their original location. Send exactly one non-empty multipart `file`
 field and an optional `tags` field containing a JSON array string (for example
@@ -111,8 +137,7 @@ Errors use `{"error":{"code":"CODE","message":"Description"}}`.
 - 503: `STORAGE_UNAVAILABLE` when upload/delete/update cannot reach the destination.
 
 Limits are 120 requests/minute/key and 300 requests/minute/IP. These use shared
-PostgreSQL counters, so multiple app nodes enforce the same limit. File writes
-still require future quota/reconciliation work documented in the storage milestone.
+PostgreSQL counters, so multiple app nodes enforce the same limit. File writes enforce account-wide quota reservations and durable cleanup/reconciliation; see [storage reliability](storage-reliability-images.md).
 
 ## Compatibility
 
@@ -130,3 +155,11 @@ Metadata includes `processingState`, `processingError` and ready `variants` (`na
 ## Application usage
 
 `GET /api/v2/application/usage` requires `files:read` and accepts no query parameters. Returns `data.applicationId`, `files`, `originalBytes`, `previewBytes`, `reservedBytes`, `imagePending`, `imageFailed`, `cleanupPending`, and `pendingUploads`. Values are scoped to the credential application; account quota and other applications are excluded. See [operations](operations.md) for lifecycle meanings.
+
+
+Dashboard-created S3 connections (including iDrive e2) are configured under
+**Application → Settings → Connect S3 storage**. Enter the provider endpoint,
+bucket, region and credentials; save, then use **Test current storage**. Saving
+selects that application’s destination for new uploads. Existing files keep
+their original destination. The connection test writes and removes its own tiny
+object; use dedicated provider resources for staging verification.

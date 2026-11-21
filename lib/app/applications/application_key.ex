@@ -3,7 +3,8 @@ defmodule App.Applications.ApplicationKey do
     otp_app: :app,
     domain: App.Applications,
     data_layer: AshPostgres.DataLayer,
-    authorizers: [Ash.Policy.Authorizer]
+    authorizers: [Ash.Policy.Authorizer],
+    notifiers: [App.DashboardNotifier]
 
   postgres do
     table "application_keys"
